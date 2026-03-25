@@ -15,6 +15,8 @@ import { getSessionUser } from "./services/auth-service";
 import { createShowMediaFile, deleteShowMediaFile, ensureUploadDirectories, uploadsTempDirectory, uploadsRootDirectory } from "./services/show-media-service";
 import { seedInitialData } from "./services/seed-service";
 
+const PORT = process.env.PORT || 3000;
+
 async function bootstrap() {
   fs.mkdirSync(path.resolve(process.cwd(), "data"), { recursive: true });
   ensureUploadDirectories();
@@ -100,8 +102,8 @@ async function bootstrap() {
     }),
   );
 
-  const server = app.listen(3000, () => {
-    console.log("Ready2Take2 server listening on http://localhost:3000");
+  const server = app.listen(PORT, () => {
+    console.log(`Ready2Take2 server listening on http://localhost:${PORT}`);
   });
 
   const wss = new WebSocketServer({ server, path: "/trpc" });

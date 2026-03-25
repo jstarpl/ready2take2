@@ -1,0 +1,9 @@
+node_modules
+dist
+data
+.git
+.gitignore
+memories
+docs
+*.md
+!package.json
