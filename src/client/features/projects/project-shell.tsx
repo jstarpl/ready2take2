@@ -71,7 +71,7 @@ export function ProjectShell() {
               {projectsQuery.data?.map((project) => (
                 <Link
                   key={project.id}
-                  className="block rounded-2xl border border-border/60 bg-background/60 p-4 transition hover:border-primary/40 hover:bg-background"
+                  className="block border border-border/60 bg-background/60 p-4 transition hover:border-primary/40 hover:bg-background"
                   to={`/projects/${project.id}`}
                 >
                   <div className="flex items-center justify-between gap-3">

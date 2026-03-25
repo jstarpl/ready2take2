@@ -28,7 +28,7 @@ Build a live-production coordination app for video crews. The system lets authen
 - A new show is created with one default track named `Camera`.
 - A cue contains:
   - `comment: string`
-  - `cueOffsetMs: number`
+  - `cueOffsetMs: number | null`
 - A cue-track value contains:
   - `technicalIdentifier: string | null`
 - Cues are ordered and user-sortable.
@@ -329,7 +329,7 @@ Put all external input contracts in shared Zod schemas.
 ### Validation rules
 
 - `comment` can be empty but should have a max length
-- `cueOffsetMs` integer and `>= 0`
+- `cueOffsetMs` integer and `>= 0` or it can be `null`
 - `technicalIdentifier` can be `null`, but if present should be a bounded string
 - any cue-track update must verify cue and track belong to the same show
 - show pointer assignments allow `null`

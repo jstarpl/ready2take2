@@ -14,6 +14,7 @@ import {
   MenubarTrigger,
 } from "@/client/components/ui/menubar";
 import { Textarea } from "@/client/components/ui/textarea";
+import { ShowMediaPlayer } from "@/client/features/shows/show-media-player";
 import { formatOffset } from "@/client/lib/utils";
 import {
   DndContext,
@@ -101,11 +102,11 @@ function MediaPreview({
   const previewKind = getMediaPreviewKind(mimeType, fileName);
 
   if (previewKind === "image") {
-    return <img src={src} alt={alt} className="h-28 w-full rounded-xl border border-border/60 object-cover" />;
+    return <img src={src} alt={alt} className="h-28 w-full border border-border/60 object-cover" />;
   }
 
   if (previewKind === "video") {
-    return <video src={src} controls className="h-28 w-full rounded-xl border border-border/60 bg-black object-cover" />;
+    return <video src={src} controls className="h-28 w-full border border-border/60 bg-black object-cover" />;
   }
 
   if (previewKind === "audio") {
@@ -113,7 +114,7 @@ function MediaPreview({
   }
 
   return (
-    <div className="flex h-28 w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-background/40 px-3 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+    <div className="flex h-28 w-full items-center justify-center border border-dashed border-border/70 bg-background/40 px-3 text-xs uppercase tracking-[0.2em] text-muted-foreground">
       No preview
     </div>
   );
@@ -244,7 +245,7 @@ function SortableCueRow({
       ref={setNodeRef}
       style={style}
       onClick={() => onSelect(cue.id)}
-      className={`cursor-pointer grid items-start gap-3 rounded-2xl border border-border/70 bg-background/65 p-3 transition-colors ${leftBorderClass} ${selectedClass}`}
+      className={`cursor-pointer grid items-start gap-3 border border-border/70 bg-background/65 p-3 transition-colors ${leftBorderClass} ${selectedClass}`}
     >
       <div className="flex items-center gap-2">
         <button
@@ -256,7 +257,7 @@ function SortableCueRow({
           <GripVertical size={16} />
         </button>
         <div>
-          <div className="font-semibold">{cue.cueOffsetMs !== null ? formatOffset(cue.cueOffsetMs) : ""}</div>
+          <div className="font-mono">{cue.cueOffsetMs !== null ? formatOffset(cue.cueOffsetMs) : ""}</div>
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -676,7 +677,7 @@ export function ShowWorkspace() {
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-6 pb-52">
         <Card className="bg-card/75">
           <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -728,70 +729,66 @@ export function ShowWorkspace() {
           </CardHeader>
         </Card>
 
-        <Card className="bg-card/75">
-          <CardContent className="overflow-auto">
-            <div className="min-w-[900px] space-y-4">
-              <div
-                className="gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground grid mx-3"
-                style={{ gridTemplateColumns: `150px 180px 220px repeat(${Math.max(show.tracks.length, 1)}, minmax(180px, 1fr)) min-content` }}
-              >
-                <div className="px-3">Offset</div>
-                <div className="px-3">Current / Next</div>
-                <div className="px-3">Comment</div>
-                {show.tracks.map((track) => (
-                  <div key={track.id} className="px-3">{track.name}</div>
+        <div className="min-w-[900px] space-y-4 mx-3">
+          <div
+            className="gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground grid mx-3"
+            style={{ gridTemplateColumns: `150px 180px 220px repeat(${Math.max(show.tracks.length, 1)}, minmax(180px, 1fr)) min-content` }}
+          >
+            <div className="px-3">Offset</div>
+            <div className="px-3">Current / Next</div>
+            <div className="px-3">Comment</div>
+            {show.tracks.map((track) => (
+              <div key={track.id} className="px-3">{track.name}</div>
+            ))}
+            <div></div>
+          </div>
+
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
+            <SortableContext items={orderedCueIds} strategy={verticalListSortingStrategy}>
+              <div className="space-y-3">
+                {cueRows.map((cue) => (
+                  <SortableCueRow
+                    key={cue.id}
+                    cue={cue}
+                    show={show}
+                    gridTemplateColumns={`150px 180px 220px repeat(${Math.max(show.tracks.length, 1)}, minmax(180px, 1fr)) min-content`}
+                    cueCommentDraft={cueCommentDrafts[cue.id] ?? ""}
+                    cueTrackValueDrafts={cueTrackValueDrafts}
+                    onCommentChange={(cueId, value) =>
+                      setCueCommentDrafts((d) => ({ ...d, [cueId]: value }))
+                    }
+                    onCommentBlur={(c, value) => {
+                      const next = value.trim();
+                      if (next === c.comment.trim()) return;
+                      updateCueMutation.mutate({ id: c.id, comment: next, cueOffsetMs: c.cueOffsetMs });
+                    }}
+                    onTrackValueChange={(key, value) =>
+                      setCueTrackValueDrafts((d) => ({ ...d, [key]: value }))
+                    }
+                    onTrackValueBlur={(c, trackId, value) => {
+                      const next = value.trim() || null;
+                      const existing = c.cueTrackValues.find((v) => v.trackId === trackId);
+                      if (next === (existing?.technicalIdentifier ?? null)) return;
+                      updateCueTrackValueMutation.mutate({ cueId: c.id, trackId, technicalIdentifier: next });
+                    }}
+                    onSetCurrent={(cueId) => showId && setCurrentCueMutation.mutate({ showId, cueId })}
+                    onSetNext={(cueId) => showId && setNextCueMutation.mutate({ showId, cueId })}
+                    onDelete={(cueId) => deleteCueMutation.mutate({ id: cueId })}
+                    isDeleting={deleteCueMutation.isPending}
+                    isSelected={selectedCueId === cue.id}
+                    onSelect={(cueId) => setSelectedCueId(cueId)}
+                  />
                 ))}
-                <div></div>
               </div>
+            </SortableContext>
+          </DndContext>
 
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
-                <SortableContext items={orderedCueIds} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-3">
-                    {cueRows.map((cue) => (
-                      <SortableCueRow
-                        key={cue.id}
-                        cue={cue}
-                        show={show}
-                        gridTemplateColumns={`150px 180px 220px repeat(${Math.max(show.tracks.length, 1)}, minmax(180px, 1fr)) min-content`}
-                        cueCommentDraft={cueCommentDrafts[cue.id] ?? ""}
-                        cueTrackValueDrafts={cueTrackValueDrafts}
-                        onCommentChange={(cueId, value) =>
-                          setCueCommentDrafts((d) => ({ ...d, [cueId]: value }))
-                        }
-                        onCommentBlur={(c, value) => {
-                          const next = value.trim();
-                          if (next === c.comment.trim()) return;
-                          updateCueMutation.mutate({ id: c.id, comment: next, cueOffsetMs: c.cueOffsetMs });
-                        }}
-                        onTrackValueChange={(key, value) =>
-                          setCueTrackValueDrafts((d) => ({ ...d, [key]: value }))
-                        }
-                        onTrackValueBlur={(c, trackId, value) => {
-                          const next = value.trim() || null;
-                          const existing = c.cueTrackValues.find((v) => v.trackId === trackId);
-                          if (next === (existing?.technicalIdentifier ?? null)) return;
-                          updateCueTrackValueMutation.mutate({ cueId: c.id, trackId, technicalIdentifier: next });
-                        }}
-                        onSetCurrent={(cueId) => showId && setCurrentCueMutation.mutate({ showId, cueId })}
-                        onSetNext={(cueId) => showId && setNextCueMutation.mutate({ showId, cueId })}
-                        onDelete={(cueId) => deleteCueMutation.mutate({ id: cueId })}
-                        isDeleting={deleteCueMutation.isPending}
-                        isSelected={selectedCueId === cue.id}
-                        onSelect={(cueId) => setSelectedCueId(cueId)}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-
-              {cueRows.length === 0 && (
-                <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-border/70 bg-background/40 p-6 text-sm">
-                  <div>Create new cues using the <span className="text-primary">Cue 🠊 Add cue</span> menu or using the <kbd className="text-primary">Ctrl+Alt+Space</kbd> hotkey.</div>
-                </div>
-              )}
+          {cueRows.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-2 border border-border/70 bg-background/40 p-6 text-sm text-muted-foreground">
+              <div>Create new cues using the <span className="text-foreground">Cue 🠊 Add cue</span> menu or using the <kbd className="text-foreground">Ctrl+Alt+Space</kbd> hotkey.</div>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
 
         <ModalDialog
           open={activeModal === "addCue"}
@@ -880,7 +877,7 @@ export function ShowWorkspace() {
             }}
           >
             <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="flex h-10 w-full border border-input bg-background px-3 py-2 text-sm"
               value={trackToRemoveId}
               onChange={(event) => setTrackToRemoveId(event.target.value)}
             >
@@ -901,6 +898,7 @@ export function ShowWorkspace() {
           </form>
         </ModalDialog>
       </div>
+      <ShowMediaPlayer show={show} serverUrl={SERVER_URL} />
       <SheetDialog
         open={activeModal === "media"}
         title="Media manager"
@@ -927,7 +925,7 @@ export function ShowWorkspace() {
             />
 
             <div
-              className={`rounded-2xl border-2 border-dashed p-5 transition ${isDragActive ? "border-primary bg-primary/5" : "border-border/70 bg-background/35"
+              className={`border-2 border-dashed p-5 transition ${isDragActive ? "border-primary bg-primary/5" : "border-border/70 bg-background/35"
                 }`}
               onDragEnter={(event) => {
                 event.preventDefault();
@@ -972,7 +970,7 @@ export function ShowWorkspace() {
               </div>
 
               {selectedUpload ? (
-                <div className="mt-4 grid gap-4 rounded-xl border border-border/60 bg-background/55 p-4 lg:grid-cols-[220px_1fr]">
+                <div className="mt-4 grid gap-4 border border-border/60 bg-background/55 p-4 lg:grid-cols-[220px_1fr]">
                   <div>
                     {selectedUploadPreviewUrl ? (
                       <MediaPreview
@@ -1008,7 +1006,7 @@ export function ShowWorkspace() {
               show.mediaFiles.map((mediaFile) => (
                 <div
                   key={mediaFile.id}
-                  className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-background/65 p-4 lg:flex-row lg:items-center lg:justify-between"
+                  className="flex flex-col gap-3 border border-border/70 bg-background/65 p-4 lg:flex-row lg:items-center lg:justify-between"
                 >
                   <div className="grid w-full gap-4 lg:grid-cols-[220px_1fr] lg:items-start">
                     <MediaPreview
@@ -1058,7 +1056,7 @@ export function ShowWorkspace() {
                 </div>
               ))
             ) : (
-              <div className="rounded-2xl border border-dashed border-border/70 bg-background/40 p-6 text-sm text-muted-foreground">
+              <div className="border border-dashed border-border/70 bg-background/40 p-6 text-sm text-muted-foreground">
                 No uploaded media yet.
               </div>
             )}

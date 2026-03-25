@@ -8,7 +8,7 @@ const Menubar = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <MenubarPrimitive.Root
     ref={ref}
-    className={cn("flex h-10 items-center space-x-1 rounded-xl border bg-card p-1", className)}
+    className={cn("flex h-10 items-center space-x-1 border bg-card p-1", className)}
     {...props}
   />
 ));
@@ -23,7 +23,7 @@ const MenubarTrigger = React.forwardRef<
   <MenubarPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex cursor-default select-none items-center rounded-lg px-3 py-1.5 text-sm font-medium outline-none focus:bg-accent data-[state=open]:bg-accent",
+      "flex cursor-default select-none items-center px-3 py-1.5 text-sm font-medium outline-none focus:bg-accent data-[state=open]:bg-accent",
       className,
     )}
     {...props}
@@ -41,7 +41,7 @@ const MenubarContent = React.forwardRef<
       align={align}
       sideOffset={sideOffset}
       className={cn(
-        "z-50 min-w-[12rem] overflow-hidden rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg",
+        "z-50 min-w-[12rem] overflow-hidden border bg-popover p-1 text-popover-foreground shadow-lg",
         className,
       )}
       {...props}
@@ -57,7 +57,7 @@ const MenubarItem = React.forwardRef<
   <MenubarPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-lg px-2 py-1.5 text-sm outline-none focus:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "relative flex cursor-default select-none items-center px-2 py-1.5 text-sm outline-none focus:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       inset && "pl-8",
       className,
     )}

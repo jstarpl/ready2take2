@@ -31,7 +31,6 @@
   *::before,
   *::after {
     @apply border-border;
-    border-radius: 0 !important;
   }
 
   body {
