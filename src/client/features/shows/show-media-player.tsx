@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MediaTimeline } from "@/client/components/media-timeline";
+import { MediaTimeline } from "@/client/components/ui/media-timeline";
 import { Button } from "@/client/components/ui/button";
 import { formatOffset } from "@/client/lib/utils";
 import type { inferRouterOutputs } from "@trpc/server";
@@ -301,7 +301,7 @@ export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, onCurren
 
           <div className="flex flex-col items-end gap-2 min-w-[220px]">
             <div className="text-2xl text-muted-foreground font-mono">
-              {formatOffset(Math.round(currentTimeMs))} / {durationMs > 0 ? formatOffset(Math.round(durationMs)) : "00:00"}
+              {formatOffset(Math.round(currentTimeMs))} / {durationMs > 0 ? formatOffset(Math.round(durationMs)) : "0:00"}
             </div>
             {playbackError ? <div className="text-xs text-destructive">{playbackError}</div> : null}
           </div>

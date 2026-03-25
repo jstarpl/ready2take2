@@ -5,6 +5,7 @@ import { Badge } from "@/client/components/ui/badge";
 import { Button, buttonVariants } from "@/client/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/client/components/ui/card";
 import { Input } from "@/client/components/ui/input";
+import { TimeEntry } from "@/client/components/ui/time-entry";
 import {
   Menubar,
   MenubarCheckboxItem,
@@ -644,9 +645,9 @@ function ShowWorkspaceContent() {
 
     // When opening the Add Cue dialog, set the offset to the current media time (or default)
     if (store.currentTimeMs > 0) {
-      store.newCueOffset = String(Math.round(store.currentTimeMs));
+      store.newCueOffsetMs = Math.round(store.currentTimeMs);
     } else {
-      store.newCueOffset = "0";
+      store.newCueOffsetMs = 0;
     }
     store.newCueCueId = nextCueId;
 
@@ -779,7 +780,7 @@ function ShowWorkspaceContent() {
       showId,
       comment,
       cueId: store.newCueCueId.trim() || undefined,
-      cueOffsetMs: store.newCueOffset ? Number(store.newCueOffset) : null,
+      cueOffsetMs: store.newCueOffsetMs,
     });
   }
 
@@ -974,7 +975,11 @@ function ShowWorkspaceContent() {
               onChange={(event) => (store.newCueComment = event.target.value)}
               placeholder="Cue comment"
             />
-            <Input value={snapshot.newCueOffset} onChange={(event) => (store.newCueOffset = event.target.value)} placeholder="Offset ms" />
+            <TimeEntry
+              value={snapshot.newCueOffsetMs}
+              onValueChange={(value) => (store.newCueOffsetMs = value)}
+              placeholder="0:00"
+            />
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => {
                 resetAddCueForm(store, nextCueId);
