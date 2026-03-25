@@ -141,6 +141,7 @@ interface SortableCueRowProps {
   isDeleting: boolean;
   isSelected: boolean;
   onSelect: (cueId: string) => void;
+  onRefChange: (cueId: string, element: HTMLElement | null) => void;
 }
 
 interface ModalDialogProps {
@@ -224,6 +225,7 @@ function SortableCueRow({
   isDeleting,
   isSelected,
   onSelect,
+  onRefChange,
 }: SortableCueRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cue.id });
 
@@ -245,9 +247,17 @@ function SortableCueRow({
 
   const selectedClass = isSelected ? "ring-2 ring-primary bg-primary/10" : "";
 
+  useEffect(() => {
+    if (setNodeRef as any) {
+      const element = document.querySelector(`[data-cue-id="${cue.id}"]`) as HTMLElement | null;
+      onRefChange(cue.id, element);
+    }
+  }, [cue.id, onRefChange]);
+
   return (
     <div
       ref={setNodeRef}
+      data-cue-id={cue.id}
       style={style}
       onClick={() => onSelect(cue.id)}
       className={`cursor-pointer grid items-start gap-3 border border-border/70 bg-background/65 p-3 transition-colors ${leftBorderClass} ${selectedClass}`}
@@ -368,6 +378,7 @@ function ShowWorkspaceContent() {
   const [orderedCueIds, setOrderedCueIds] = useState<string[]>([]);
   const [deletingMediaFileId, setDeletingMediaFileId] = useState<string | null>(null);
   const isDraggingRef = useRef(false);
+  const cueRefMapRef = useRef<Map<string, HTMLElement>>(new Map());
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const selectedUploadPreviewUrl = useMemo(() => {
     if (!snapshot.selectedUpload) {
@@ -606,6 +617,36 @@ function ShowWorkspaceContent() {
         target instanceof HTMLElement &&
         (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT");
 
+      // Handle ArrowUp and ArrowDown for cue navigation
+      if (!isEditableTarget && (event.code === "ArrowUp" || event.code === "ArrowDown")) {
+        event.preventDefault();
+        
+        if (!snapshot.selectedCueId || orderedCueIds.length === 0) {
+          return;
+        }
+        
+        const currentIndex = orderedCueIds.indexOf(snapshot.selectedCueId);
+        let newIndex = currentIndex;
+        
+        if (event.code === "ArrowUp") {
+          newIndex = Math.max(0, currentIndex - 1);
+        } else if (event.code === "ArrowDown") {
+          newIndex = Math.min(orderedCueIds.length - 1, currentIndex + 1);
+        }
+        
+        if (newIndex !== currentIndex) {
+          const newCueId = orderedCueIds[newIndex];
+          store.selectedCueId = newCueId;
+          
+          // Scroll the newly selected cue into view
+          const element = cueRefMapRef.current.get(newCueId);
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          }
+        }
+        return;
+      }
+
       if (event.code === "F12") {
         event.preventDefault();
         if (!showId || !show?.nextCueId || takeShowMutation.isPending) {
@@ -636,7 +677,7 @@ function ShowWorkspaceContent() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleMoveCueToNow, handleTake, show?.nextCueId, showId, takeShowMutation.isPending, store]);
+  }, [handleMoveCueToNow, handleTake, show?.nextCueId, showId, takeShowMutation.isPending, store, snapshot.selectedCueId, orderedCueIds]);
 
   useEffect(() => {
     if (store.activeModal !== "addCue") {
@@ -787,7 +828,7 @@ function ShowWorkspaceContent() {
   return (
     <>
       <div className="space-y-6 pb-52 pt-[5.5em]">
-        <Card className="fixed top-0 left-0 right-0 z-40 bg-card/75">
+        <Card className="fixed top-0 left-0 right-0 z-40 bg-card/75 border-l-0 border-r-0 border-t-0">
           <CardHeader className="grid items-center gap-4 grid-cols-[auto_1fr_auto] justify-items-start">
             <div>
               <Button variant="ghost" size="default" onClick={() => navigate("/shows")} aria-label="Back to show list">
@@ -923,6 +964,13 @@ function ShowWorkspaceContent() {
                     isDeleting={deleteCueMutation.isPending}
                     isSelected={snapshot.selectedCueId === cue.id}
                     onSelect={(cueId) => (store.selectedCueId = cueId)}
+                    onRefChange={(cueId, element) => {
+                      if (element) {
+                        cueRefMapRef.current.set(cueId, element);
+                      } else {
+                        cueRefMapRef.current.delete(cueId);
+                      }
+                    }}
                   />
                 ))}
               </div>

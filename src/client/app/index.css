@@ -27,6 +27,9 @@
     --warning: 38 92% 50%;
 
     color-scheme: dark;
+
+    scroll-padding-block-start: 10rem;
+    scroll-padding-block-end: 13rem;
   }
 
   *,
