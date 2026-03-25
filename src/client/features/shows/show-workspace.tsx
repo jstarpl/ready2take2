@@ -763,8 +763,8 @@ function ShowWorkspaceContent() {
 
   return (
     <>
-      <div className="space-y-6 pb-52">
-        <Card className="bg-card/75">
+      <div className="space-y-6 pb-52 pt-[5.5em]">
+        <Card className="fixed top-0 left-0 right-0 z-40 bg-card/75">
           <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <Menubar>
@@ -806,7 +806,7 @@ function ShowWorkspaceContent() {
                   <MenubarTrigger>Media</MenubarTrigger>
                   <MenubarContent>
                     <MenubarItem onSelect={() => (store.activeModal = "media")}>Open media manager</MenubarItem>
-                    <MenubarSeparator/>
+                    <MenubarSeparator />
                     {show.mediaFiles.length === 0 ? (
                       <MenubarItem disabled>No media files</MenubarItem>
                     ) : (
@@ -1018,12 +1018,12 @@ function ShowWorkspaceContent() {
           </form>
         </ModalDialog>
       </div>
-      <ShowMediaPlayer 
-        show={show} 
+      {snapshot.selectedMediaFileId && <ShowMediaPlayer
+        show={show}
         serverUrl={SERVER_URL}
         selectedMediaFileId={snapshot.selectedMediaFileId}
         onCurrentTimeChange={(ms) => (store.currentTimeMs = ms)}
-      />
+      />}
       <SheetDialog
         open={snapshot.activeModal === "media"}
         title="Media manager"
