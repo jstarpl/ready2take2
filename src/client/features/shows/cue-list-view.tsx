@@ -10,57 +10,54 @@ import {
     destroyCueListViewStore,
     useCueListViewStore,
 } from "@/client/features/shows/cue-list-view-store";
+import { Cue } from "@/server/db/entities/Cue";
+import { Show } from "@/server/db/entities/Show";
 
 function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
 }
 
 interface CueListItemProps {
-    cue: any;
-    show: any;
+    cue: Cue;
+    show: Show;
     status: "current" | "next" | "following";
     trackValues: Record<string, string | null>;
 }
 
 function CueListItem({ cue, show, status, trackValues }: CueListItemProps) {
     const statusColors = {
-        current: "bg-red-600/30 border-l-4 border-l-red-600",
-        next: "bg-green-600/30 border-l-4 border-l-green-600",
-        following: "border-l-4 border-l-border",
-    };
-
-    const statusBadgeColors = {
-        current: "bg-red-600 text-white",
-        next: "bg-green-600 text-white",
-        following: "bg-border text-foreground",
+        current: "bg-red-600/30 border-l-8 border-l-red-600",
+        next: "bg-green-600/30 border-l-8 border-l-green-600",
+        following: "border-l-8 border-l-border",
     };
 
     return (
         <div className={cn("border border-border/50 p-3 transition-colors", statusColors[status])}>
-            <div className="flex items-start justify-between gap-4 mb-2">
-                <div className="flex-1">
-                    <div className="font-mono text-sm text-muted-foreground">
+            <div className="grid items-center justify-items-start gap-4 mb-2" style={{ gridTemplateColumns: `minmax(10ch, auto) minmax(10ch, auto) ${show.tracks.length > 0 ? `repeat(${show.tracks.length}, minmax(5ch, auto))` : ""} 1fr` }}>
+                <div className="flex-1 justify-self-stretch">
+                    <div className="font-mono text-5xl text-muted-foreground">
+                        {cue.cueId}
+                    </div>
+                </div>
+                <div className="flex-1 justify-self-end">
+                    <div className="font-mono text-4xl text-foreground">
                         {cue.cueOffsetMs !== null ? formatOffset(cue.cueOffsetMs) : "—"}
                     </div>
                 </div>
-            </div>
-            {cue.comment && (
-                <div className="text-sm text-foreground mb-2 whitespace-wrap break-words">
-                    {cue.comment}
-                </div>
-            )}
-            {show.tracks.length > 0 && (
-                <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(120px, 1fr))` }}>
-                    {show.tracks.map((track: any) => (
-                        <div key={track.id} className="flex flex-col gap-1">
-                            <div className="text-xs font-medium text-muted-foreground">{track.name}</div>
-                            <div className="text-xs text-foreground bg-background/50 px-2 py-1 rounded truncate">
+                {show.tracks.length > 0 && (
+                    show.tracks.map((track: any) => (
+                        <div key={track.id} className="flex flex-col gap-1 relative self-stretch justify-self-stretch align-center items-center">
+                            <div className="absolute text-muted-foreground text-xs -bottom-3">{track.name}</div>
+                            <div className="text-4xl text-foreground px-2 py-1">
                                 {trackValues[track.id] || "—"}
                             </div>
                         </div>
-                    ))}
+                    ))
+                )}
+                <div className="text-4xl text-foreground whitespace-wrap break-words">
+                    {cue.comment}
                 </div>
-            )}
+            </div>
         </div>
     );
 }
@@ -195,7 +192,7 @@ function CueListViewContent() {
     if (nextCueIndex !== -1) {
         topPaneCues = orderedCues.slice(nextCueIndex, nextCueIndex + 25);
     } else {
-        topPaneCues = orderedCues.slice(0, 25);
+        topPaneCues = orderedCues.slice(0, 25).filter((cue) => cue.id !== safeShow.currentCueId);
     }
 
     // Build bottom pane: cues filtered by selected track and technical identifier
@@ -237,14 +234,8 @@ function CueListViewContent() {
         <div className="h-screen w-full flex flex-col overflow-hidden bg-background">
             {/* Top pane */}
             <div style={{ height: `${snapshot.splitterPositionPercent}%` }} className="flex flex-col border-b border-border/50 overflow-hidden">
-                <div className="border-b border-border/50 bg-background/50 px-4 py-3 flex items-center justify-between">
-                    <div>
-                        <h2 className="text-lg font-semibold">Cues</h2>
-                        <p className="text-sm text-muted-foreground">{topPaneCues.length} cues shown</p>
-                    </div>
-                </div>
                 <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-                    {topPaneCues.length === 0 ? (
+                    {topPaneCues.length === 0 && !currentCue ? (
                         <div className="flex items-center justify-center h-full text-muted-foreground">
                             No cues to display
                         </div>
@@ -310,13 +301,6 @@ function CueListViewContent() {
             {/* Bottom pane */}
             <div style={{ height: `${100 - snapshot.splitterPositionPercent}%` }} className="flex flex-col overflow-hidden">
                 <div className="border-b border-border/50 bg-background/50 px-4 py-3 space-y-3">
-                    <div>
-                        <h2 className="text-lg font-semibold">Filter by Track Value</h2>
-                        <p className="text-sm text-muted-foreground">
-                            {bottomPaneCues.length} matching cues
-                        </p>
-                    </div>
-
                     <div className="grid grid-cols-2 gap-3">
                         {/* Track selector */}
                         <div>
