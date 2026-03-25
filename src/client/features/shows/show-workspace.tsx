@@ -729,10 +729,6 @@ export function ShowWorkspace() {
         </Card>
 
         <Card className="bg-card/75">
-          <CardHeader>
-            <CardTitle>Cue matrix</CardTitle>
-            <CardDescription>Each cue is ordered once per show, with a nullable technical identifier for every track.</CardDescription>
-          </CardHeader>
           <CardContent className="overflow-auto">
             <div className="min-w-[900px] space-y-4">
               <div
@@ -787,6 +783,12 @@ export function ShowWorkspace() {
                   </div>
                 </SortableContext>
               </DndContext>
+
+              {cueRows.length === 0 && (
+                <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-border/70 bg-background/40 p-6 text-sm">
+                  <div>Create new cues using the <span className="text-primary">Cue 🠊 Add cue</span> menu or using the <kbd className="text-primary">Ctrl+Alt+Space</kbd> hotkey.</div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
