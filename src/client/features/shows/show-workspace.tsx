@@ -251,7 +251,7 @@ function SortableCueRow({
       onClick={() => onSelect(cue.id)}
       className={`cursor-pointer grid items-start gap-3 border border-border/70 bg-background/65 p-3 transition-colors ${leftBorderClass} ${selectedClass}`}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2">
         <button
           {...attributes}
           {...listeners}
@@ -260,6 +260,9 @@ function SortableCueRow({
         >
           <GripVertical size={16} />
         </button>
+        <div className="font-mono font-semibold text-muted-foreground">{cue.cueId}</div>
+      </div>
+      <div className="flex items-center gap-2">
         <div>
           <div className="font-mono">{cue.cueOffsetMs !== null ? formatOffset(cue.cueOffsetMs) : ""}</div>
         </div>
@@ -485,6 +488,14 @@ function ShowWorkspaceContent() {
     },
   });
 
+  const resetCueIdsMutation = trpc.cue.resetIds.useMutation({
+    onSuccess: async () => {
+      if (showId) {
+        await utils.show.getDetail.invalidate({ showId });
+      }
+    },
+  });
+
   const show = showQuery.data;
   const cueById = useMemo(() => new Map((show?.cues ?? []).map((c) => [c.id, c])), [show?.cues]);
   const cueRows = useMemo(
@@ -497,6 +508,15 @@ function ShowWorkspaceContent() {
   );
   const canTake = Boolean(showId && show?.nextCueId && !takeShowMutation.isPending);
   const canMoveCueToNow = Boolean(selectedCue && !updateCueMutation.isPending);
+
+  const nextCueId = useMemo(() => {
+    if (!show?.cues.length) return "1";
+    const max = show.cues.reduce((m, c) => {
+      const n = parseInt(c.cueId, 10);
+      return isNaN(n) ? m : Math.max(m, n);
+    }, 0);
+    return String(max + 1);
+  }, [show?.cues]);
 
   function handleTake() {
     if (!showId || !show?.nextCueId || takeShowMutation.isPending) {
@@ -626,8 +646,9 @@ function ShowWorkspaceContent() {
     if (store.currentTimeMs > 0) {
       store.newCueOffset = String(Math.round(store.currentTimeMs));
     } else {
-      store.newCueOffset = "10000";
+      store.newCueOffset = "0";
     }
+    store.newCueCueId = nextCueId;
 
     const frameId = window.requestAnimationFrame(() => {
       addCueCommentRef.current?.focus();
@@ -636,7 +657,7 @@ function ShowWorkspaceContent() {
     return () => {
       window.cancelAnimationFrame(frameId);
     };
-  }, [store.activeModal, store.currentTimeMs, store]);
+  }, [store.activeModal, store.currentTimeMs, store, nextCueId]);
 
   useEffect(() => {
     if (!show?.tracks.length) {
@@ -757,6 +778,7 @@ function ShowWorkspaceContent() {
     createCueMutation.mutate({
       showId,
       comment,
+      cueId: store.newCueCueId.trim() || undefined,
       cueOffsetMs: store.newCueOffset ? Number(store.newCueOffset) : null,
     });
   }
@@ -778,6 +800,13 @@ function ShowWorkspaceContent() {
                     <MenubarItem disabled={!canMoveCueToNow} onSelect={handleMoveCueToNow}>
                       Move cue to now
                       <MenubarShortcut>Ctrl+M</MenubarShortcut>
+                    </MenubarItem>
+                    <MenubarSeparator />
+                    <MenubarItem
+                      disabled={!show || resetCueIdsMutation.isPending}
+                      onSelect={() => showId && resetCueIdsMutation.mutate({ showId })}
+                    >
+                      Reset Cue IDs
                     </MenubarItem>
                   </MenubarContent>
                 </MenubarMenu>
@@ -842,8 +871,9 @@ function ShowWorkspaceContent() {
         <div className="min-w-[900px] space-y-4 mx-3">
           <div
             className="gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground grid mx-3"
-            style={{ gridTemplateColumns: `150px 180px 220px repeat(${Math.max(show.tracks.length, 1)}, minmax(180px, 1fr)) min-content` }}
+            style={{ gridTemplateColumns: `70px 150px 180px 220px repeat(${Math.max(show.tracks.length, 1)}, minmax(180px, 1fr)) min-content` }}
           >
+            <div className="px-3">ID</div>
             <div className="px-3">Offset</div>
             <div className="px-3">Current / Next</div>
             <div className="px-3">Comment</div>
@@ -861,7 +891,7 @@ function ShowWorkspaceContent() {
                     key={cue.id}
                     cue={cue}
                     show={show}
-                    gridTemplateColumns={`150px 180px 220px repeat(${Math.max(show.tracks.length, 1)}, minmax(180px, 1fr)) min-content`}
+                    gridTemplateColumns={`80px 150px 180px 220px repeat(${Math.max(show.tracks.length, 1)}, minmax(180px, 1fr)) min-content`}
                     cueCommentDraft={cueCommentDrafts[cue.id] ?? ""}
                     cueTrackValueDrafts={cueTrackValueDrafts}
                     onCommentChange={(cueId, value) =>
@@ -905,7 +935,7 @@ function ShowWorkspaceContent() {
           title="Add cue"
           description="Create a show-level cue across every track."
           onClose={() => {
-            resetAddCueForm(store);
+            resetAddCueForm(store, nextCueId);
             store.activeModal = null;
           }}
         >
@@ -915,7 +945,7 @@ function ShowWorkspaceContent() {
             onKeyDown={(event) => {
               if (event.key === "Escape") {
                 event.preventDefault();
-                resetAddCueForm(store);
+                resetAddCueForm(store, nextCueId);
                 store.activeModal = null;
                 return;
               }
@@ -932,6 +962,12 @@ function ShowWorkspaceContent() {
               submitNewCue();
             }}
           >
+            <div className="text-sm text-muted-foreground">Cue ID</div>
+            <Input
+              value={snapshot.newCueCueId}
+              onChange={(event) => (store.newCueCueId = event.target.value)}
+              placeholder="Cue ID"
+            />
             <Textarea
               ref={addCueCommentRef}
               value={snapshot.newCueComment}
@@ -941,7 +977,7 @@ function ShowWorkspaceContent() {
             <Input value={snapshot.newCueOffset} onChange={(event) => (store.newCueOffset = event.target.value)} placeholder="Offset ms" />
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => {
-                resetAddCueForm(store);
+                resetAddCueForm(store, nextCueId);
                 store.activeModal = null;
               }}>
                 Cancel

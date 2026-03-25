@@ -9,6 +9,7 @@ export interface ShowWorkspaceState {
   // Add Cue form
   newCueComment: string;
   newCueOffset: string;
+  newCueCueId: string;
 
   // Add Track form
   newTrackName: string;
@@ -34,7 +35,8 @@ export function createShowWorkspaceStore(): ShowWorkspaceState {
     currentTimeMs: 0,
     selectedMediaFileId: null,
     newCueComment: "",
-    newCueOffset: "10000",
+    newCueOffset: "0",
+    newCueCueId: "1",
     newTrackName: "",
     activeModal: null,
     selectedCueId: null,
@@ -60,9 +62,10 @@ export function destroyStore(showId: string): void {
   storeMap.delete(showId);
 }
 
-export function resetAddCueForm(store: ShowWorkspaceState): void {
+export function resetAddCueForm(store: ShowWorkspaceState, nextCueId?: string): void {
   store.newCueComment = "";
-  store.newCueOffset = "10000";
+  store.newCueOffset = "0";
+  store.newCueCueId = nextCueId ?? "1";
 }
 
 export function resetAddTrackForm(store: ShowWorkspaceState): void {

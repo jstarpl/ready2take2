@@ -1,10 +1,10 @@
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { cueCreateSchema, cueDeleteSchema, cueReorderSchema, cueUpdateSchema } from "@/shared/schemas";
-import { createCueWithTrackValues, deleteCueAndClearPointers, reorderCues, updateCue } from "../../services/cue-service";
+import { cueCreateSchema, cueDeleteSchema, cueReorderSchema, cueResetIdsSchema, cueUpdateSchema } from "@/shared/schemas";
+import { createCueWithTrackValues, deleteCueAndClearPointers, reorderCues, resetCueIds, updateCue } from "../../services/cue-service";
 
 export const cueRouter = createTRPCRouter({
   create: protectedProcedure.input(cueCreateSchema).mutation(async ({ input }) => {
-    return createCueWithTrackValues(input.showId, input.comment, input.cueOffsetMs);
+    return createCueWithTrackValues(input.showId, input.comment, input.cueOffsetMs, input.cueId);
   }),
   update: protectedProcedure.input(cueUpdateSchema).mutation(async ({ input }) => {
     return updateCue(input.id, input.comment, input.cueOffsetMs);
@@ -15,6 +15,10 @@ export const cueRouter = createTRPCRouter({
   }),
   reorder: protectedProcedure.input(cueReorderSchema).mutation(async ({ input }) => {
     await reorderCues(input.showId, input.cueIds);
+    return { ok: true };
+  }),
+  resetIds: protectedProcedure.input(cueResetIdsSchema).mutation(async ({ input }) => {
+    await resetCueIds(input.showId);
     return { ok: true };
   }),
 });

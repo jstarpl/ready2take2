@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const cueCreateSchema = z.object({
   showId: z.string(),
+  cueId: z.string().trim().max(50).optional(),
   comment: z.string().trim().max(1000),
   cueOffsetMs: z.number().int().min(0).nullable(),
 });
@@ -19,6 +20,10 @@ export const cueDeleteSchema = z.object({
 export const cueReorderSchema = z.object({
   showId: z.string(),
   cueIds: z.array(z.string()).min(1),
+});
+
+export const cueResetIdsSchema = z.object({
+  showId: z.string(),
 });
 
 export const cueTrackValueUpdateSchema = z.object({

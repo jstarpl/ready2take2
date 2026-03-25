@@ -5,17 +5,30 @@ import { Show } from "../db/entities/Show";
 import { Track } from "../db/entities/Track";
 import { showEvents } from "../realtime/show-events";
 
-export async function createCueWithTrackValues(showId: string, comment: string, cueOffsetMs: number | null) {
+export async function createCueWithTrackValues(showId: string, comment: string, cueOffsetMs: number | null, explicitCueId?: string) {
   return appDataSource.transaction(async (manager) => {
     const show = await manager.findOneByOrFail(Show, { id: showId });
     const cueRepository = manager.getRepository(Cue);
     const cueTrackValueRepository = manager.getRepository(CueTrackValue);
     const tracks = await manager.findBy(Track, { showId });
-    const cueCount = await cueRepository.count({ where: { showId } });
+    const existingCues = await cueRepository.find({ where: { showId } });
+    const cueCount = existingCues.length;
+
+    let resolvedCueId: string;
+    if (explicitCueId && explicitCueId.trim() !== "") {
+      resolvedCueId = explicitCueId.trim();
+    } else {
+      const maxCueId = existingCues.reduce((max, cue) => {
+        const num = parseInt(cue.cueId, 10);
+        return isNaN(num) ? max : Math.max(max, num);
+      }, 0);
+      resolvedCueId = String(maxCueId + 1);
+    }
 
     const cue = cueRepository.create({
       show,
       showId,
+      cueId: resolvedCueId,
       comment,
       cueOffsetMs: cueOffsetMs ?? undefined,
       orderKey: String(cueCount).padStart(4, "0"),
@@ -95,6 +108,20 @@ export async function updateCueTrackValue(cueId: string, trackId: string, techni
   const saved = await cueTrackValueRepository.save(existing);
   showEvents.publish({ type: "cueTrackValue.updated", showId: cue.showId, entityId: saved.id });
   return saved;
+}
+
+export async function resetCueIds(showId: string) {
+  return appDataSource.transaction(async (manager) => {
+    const cueRepository = manager.getRepository(Cue);
+    const cues = await cueRepository.find({ where: { showId }, order: { orderKey: "ASC" } });
+
+    cues.forEach((cue, index) => {
+      cue.cueId = String(index + 1);
+    });
+
+    await cueRepository.save(cues);
+    showEvents.publish({ type: "cue.reordered", showId });
+  });
 }
 
 export async function deleteCueAndClearPointers(cueId: string) {
