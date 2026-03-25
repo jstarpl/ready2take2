@@ -42,7 +42,7 @@ import { GripVertical, Trash2, Upload, ArrowLeft } from "lucide-react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/api/root";
 import type { ShowEvent } from "@/shared/types/domain";
-import { useSnapshot } from "valtio";
+import { ref, useSnapshot } from "valtio";
 
 type RouterOutput = inferRouterOutputs<AppRouter>;
 type ShowDetail = NonNullable<RouterOutput["show"]["getDetail"]>;
@@ -766,7 +766,7 @@ function ShowWorkspaceContent() {
 
   function handleFileSelection(file: File | null) {
     store.uploadError = null;
-    store.selectedUpload = file;
+    store.selectedUpload = file === null ? null : ref(file);
   }
 
   function submitNewCue() {
@@ -1137,31 +1137,31 @@ function ShowWorkspaceContent() {
                   <Button type="button" variant="outline" onClick={() => uploadInputRef.current?.click()}>
                     Choose file
                   </Button>
-                  <Button type="submit" disabled={!store.selectedUpload || store.isUploading} className="gap-2">
+                  <Button type="submit" disabled={!snapshot.selectedUpload || snapshot.isUploading} className="gap-2">
                     <Upload size={16} />
-                    {store.isUploading ? "Uploading..." : "Upload media"}
+                    {snapshot.isUploading ? "Uploading..." : "Upload media"}
                   </Button>
                 </div>
               </div>
 
-              {store.selectedUpload ? (
+              {snapshot.selectedUpload ? (
                 <div className="mt-4 grid gap-4 border border-border/60 bg-background/55 p-4 lg:grid-cols-[220px_1fr]">
                   <div>
                     {selectedUploadPreviewUrl ? (
                       <MediaPreview
                         src={selectedUploadPreviewUrl}
-                        mimeType={store.selectedUpload.type}
-                        fileName={store.selectedUpload.name}
-                        alt={store.selectedUpload.name}
+                        mimeType={snapshot.selectedUpload.type}
+                        fileName={snapshot.selectedUpload.name}
+                        alt={snapshot.selectedUpload.name}
                       />
                     ) : null}
                   </div>
                   <div className="space-y-2">
                     <div className="font-medium">Ready to upload</div>
-                    <div className="text-sm text-muted-foreground">{store.selectedUpload.name}</div>
+                    <div className="text-sm text-muted-foreground">{snapshot.selectedUpload.name}</div>
                     <div className="text-sm text-muted-foreground">
-                      {formatFileSize(store.selectedUpload.size)}
-                      {store.selectedUpload.type ? ` • ${store.selectedUpload.type}` : ""}
+                      {formatFileSize(snapshot.selectedUpload.size)}
+                      {snapshot.selectedUpload.type ? ` • ${snapshot.selectedUpload.type}` : ""}
                     </div>
                     <div>
                       <Button type="button" variant="outline" size="sm" onClick={() => handleFileSelection(null)}>
@@ -1174,7 +1174,7 @@ function ShowWorkspaceContent() {
             </div>
           </form>
 
-          {store.uploadError ? <p className="text-sm text-destructive">{store.uploadError}</p> : null}
+          {snapshot.uploadError ? <p className="text-sm text-destructive">{snapshot.uploadError}</p> : null}
 
           <div className="space-y-3">
             {show.mediaFiles.length ? (
