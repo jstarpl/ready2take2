@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MediaTimeline } from "@/client/components/media-timeline";
 import { Button } from "@/client/components/ui/button";
-import { Input } from "@/client/components/ui/input";
 import { formatOffset } from "@/client/lib/utils";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/api/root";
@@ -228,45 +228,25 @@ export function ShowMediaPlayer({ show, serverUrl }: ShowMediaPlayerProps) {
     seekTo(clamp(targetMs, 0, maxMs));
   }
 
-  const sliderMax = durationMs > 0 ? durationMs : 1;
-  const sliderValue = clamp(currentTimeMs, 0, sliderMax);
   const controlsDisabled = !selectedMediaFile || durationMs <= 0;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/70 bg-card/95 backdrop-blur-sm">
       <div className="mx-auto w-full max-w-[1600px] px-4 py-3">
         <div className="relative mb-3">
-          <div className="pointer-events-none absolute inset-0 flex items-center px-1">
-            <div className="h-1 w-full bg-muted/40" />
-          </div>
-          <Input
-            type="range"
-            min={0}
-            max={sliderMax}
-            value={sliderValue}
-            className="relative z-10 h-8 w-full cursor-pointer border-0 bg-transparent px-0"
-            onChange={(event) => seekTo(Number(event.target.value))}
+          <MediaTimeline
+            value={currentTimeMs}
+            max={durationMs}
             disabled={!selectedMediaFile}
-            aria-label="Seek media"
+            ariaLabel="Seek media"
+            markers={cuesWithOffset.map((cue) => ({
+              id: cue.id,
+              value: cue.offsetMs,
+              label: `${cue.comment || "Cue"} (${formatOffset(cue.offsetMs)})`,
+            }))}
+            onChange={seekTo}
+            onMarkerSelect={seekTo}
           />
-          {durationMs > 0 ? (
-            <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2">
-              {cuesWithOffset.map((cue) => {
-                const markerPosition = clamp((cue.offsetMs / durationMs) * 100, 0, 100);
-                return (
-                  <button
-                    key={cue.id}
-                    type="button"
-                    className="pointer-events-auto absolute top-1/2 h-3 w-3 -translate-y-1/2 -translate-x-1/2 border border-primary/50 bg-primary/80"
-                    style={{ left: `${markerPosition}%` }}
-                    title={`${cue.comment || "Cue"} (${formatOffset(cue.offsetMs)})`}
-                    onClick={() => seekTo(cue.offsetMs)}
-                    aria-label={`Seek to cue ${cue.comment || formatOffset(cue.offsetMs)}`}
-                  />
-                );
-              })}
-            </div>
-          ) : null}
         </div>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
