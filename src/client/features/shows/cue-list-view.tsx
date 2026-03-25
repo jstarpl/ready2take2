@@ -26,8 +26,8 @@ interface CueListItemProps {
 
 function CueListItem({ cue, show, status, trackValues }: CueListItemProps) {
     const statusColors = {
-        current: "bg-red-600/30 border-l-8 border-l-red-600",
-        next: "bg-green-600/30 border-l-8 border-l-green-600",
+        current: "bg-red-600/30 border-l-8 border-l-red-500",
+        next: "bg-green-600/30 border-l-8 border-l-green-500",
         following: "border-l-8 border-l-border",
     };
 
