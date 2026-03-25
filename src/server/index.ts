@@ -29,7 +29,7 @@ async function bootstrap() {
   const upload = multer({
     dest: uploadsTempDirectory,
     limits: {
-      fileSize: 250 * 1024 * 1024,
+      fileSize: 1024 * 1024 * 1024, // 1 GB
     },
   });
 
