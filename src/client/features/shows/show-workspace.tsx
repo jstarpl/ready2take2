@@ -133,6 +133,8 @@ interface SortableCueRowProps {
   onSetNext: (cueId: string) => void;
   onDelete: (cueId: string) => void;
   isDeleting: boolean;
+  isSelected: boolean;
+  onSelect: (cueId: string) => void;
 }
 
 interface ModalDialogProps {
@@ -214,6 +216,8 @@ function SortableCueRow({
   onSetNext,
   onDelete,
   isDeleting,
+  isSelected,
+  onSelect,
 }: SortableCueRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cue.id });
 
@@ -233,11 +237,14 @@ function SortableCueRow({
       ? "border-l-[10px] border-l-green-500 pl-[3px]"
       : "";
 
+  const selectedClass = isSelected ? "ring-2 ring-primary bg-primary/10" : "";
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`grid items-start gap-3 rounded-2xl border border-border/70 bg-background/65 p-3 ${leftBorderClass}`}
+      onClick={() => onSelect(cue.id)}
+      className={`cursor-pointer grid items-start gap-3 rounded-2xl border border-border/70 bg-background/65 p-3 transition-colors ${leftBorderClass} ${selectedClass}`}
     >
       <div className="flex items-center gap-2">
         <button
@@ -300,6 +307,8 @@ export function ShowWorkspace() {
   const { showId } = useParams();
   const navigate = useNavigate();
   const utils = trpc.useUtils();
+  const addCueFormRef = useRef<HTMLFormElement | null>(null);
+  const addCueCommentRef = useRef<HTMLTextAreaElement | null>(null);
   const [newCueComment, setNewCueComment] = useState("");
   const [newCueOffset, setNewCueOffset] = useState("10000");
   const [newTrackName, setNewTrackName] = useState("");
@@ -308,6 +317,7 @@ export function ShowWorkspace() {
   const [cueCommentDrafts, setCueCommentDrafts] = useState<Record<string, string>>({});
   const [cueTrackValueDrafts, setCueTrackValueDrafts] = useState<Record<string, string>>({});
   const [orderedCueIds, setOrderedCueIds] = useState<string[]>([]);
+  const [selectedCueId, setSelectedCueId] = useState<string | null>(null);
   const [selectedUpload, setSelectedUpload] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -510,6 +520,20 @@ export function ShowWorkspace() {
   }, []);
 
   useEffect(() => {
+    if (activeModal !== "addCue") {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      addCueCommentRef.current?.focus();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [activeModal]);
+
+  useEffect(() => {
     if (!show?.tracks.length) {
       setTrackToRemoveId("");
       return;
@@ -610,6 +634,20 @@ export function ShowWorkspace() {
     setSelectedUpload(file);
   }
 
+  function submitNewCue() {
+    const comment = newCueComment.trim();
+
+    if (!showId || !comment || createCueMutation.isPending) {
+      return;
+    }
+
+    createCueMutation.mutate({
+      showId,
+      comment,
+      cueOffsetMs: newCueOffset ? Number(newCueOffset) : null,
+    });
+  }
+
   return (
     <>
       <div className="space-y-6">
@@ -646,13 +684,10 @@ export function ShowWorkspace() {
                 </MenubarMenu>
               </Menubar>
             </div>
-            <div className="flex items-start justify-between gap-4 md:min-w-[340px]">
+            <div className="flex items-end justify-between gap-4">
               <div className="flex gap-2 items-center flex-wrap">
-                <div className="flex gap-2 items-center flex-wrap">
-                  <CardTitle>{show.name}</CardTitle>
-                  <Badge>{show.status}</Badge>
-                </div>
-                <CardDescription>Live workspace with shared cue state and per-track technical identifiers.</CardDescription>
+                <CardTitle>{show.name}</CardTitle>
+                <Badge>{show.status}</Badge>
               </div>
             </div>
           </CardHeader>
@@ -710,6 +745,8 @@ export function ShowWorkspace() {
                         onSetNext={(cueId) => showId && setNextCueMutation.mutate({ showId, cueId })}
                         onDelete={(cueId) => deleteCueMutation.mutate({ id: cueId })}
                         isDeleting={deleteCueMutation.isPending}
+                        isSelected={selectedCueId === cue.id}
+                        onSelect={(cueId) => setSelectedCueId(cueId)}
                       />
                     ))}
                   </div>
@@ -726,18 +763,33 @@ export function ShowWorkspace() {
           onClose={() => setActiveModal(null)}
         >
           <form
+            ref={addCueFormRef}
             className="space-y-3"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setActiveModal(null);
+                return;
+              }
+
+              if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
+                return;
+              }
+
+              event.preventDefault();
+              addCueFormRef.current?.requestSubmit();
+            }}
             onSubmit={(event) => {
               event.preventDefault();
-              if (!showId) return;
-              createCueMutation.mutate({
-                showId,
-                comment: newCueComment,
-                cueOffsetMs: newCueOffset ? Number(newCueOffset) : null,
-              });
+              submitNewCue();
             }}
           >
-            <Textarea value={newCueComment} onChange={(event) => setNewCueComment(event.target.value)} placeholder="Cue comment" />
+            <Textarea
+              ref={addCueCommentRef}
+              value={newCueComment}
+              onChange={(event) => setNewCueComment(event.target.value)}
+              placeholder="Cue comment"
+            />
             <Input value={newCueOffset} onChange={(event) => setNewCueOffset(event.target.value)} placeholder="Offset ms" />
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setActiveModal(null)}>
