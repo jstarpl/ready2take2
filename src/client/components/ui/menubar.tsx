@@ -79,6 +79,18 @@ const MenubarShortcut = ({ className, ...props }: React.HTMLAttributes<HTMLSpanE
 };
 MenubarShortcut.displayName = "MenubarShortcut";
 
+const MenubarCheckboxItem = React.forwardRef<
+  React.ElementRef<typeof MenubarPrimitive.CheckboxItem>,
+  React.ComponentPropsWithoutRef<typeof MenubarPrimitive.CheckboxItem> & { inset?: boolean }
+>(({ className, inset, children, checked, ...props }, ref) => (
+  <MenubarPrimitive.CheckboxItem ref={ref} className={cn(
+    "relative flex cursor-default select-none items-center px-2 py-1.5 text-sm outline-none focus:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+    inset && "pl-8",
+    className,
+  )} {...props}><span className="min-w-[1rem]">{checked ? '●' : '\xa0'}</span> {children}</MenubarPrimitive.CheckboxItem>
+));
+MenubarCheckboxItem.displayName = MenubarPrimitive.CheckboxItem.displayName;
+
 export {
   Menubar,
   MenubarMenu,
@@ -87,4 +99,5 @@ export {
   MenubarItem,
   MenubarSeparator,
   MenubarShortcut,
+  MenubarCheckboxItem,
 };

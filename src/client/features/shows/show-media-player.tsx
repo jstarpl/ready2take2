@@ -58,10 +58,11 @@ function isTypingInFormField(target: EventTarget | null) {
 interface ShowMediaPlayerProps {
   show: ShowDetail;
   serverUrl: string;
+  selectedMediaFileId: string | null;
+  onCurrentTimeChange?: (currentTimeMs: number) => void;
 }
 
-export function ShowMediaPlayer({ show, serverUrl }: ShowMediaPlayerProps) {
-  const [selectedMediaFileId, setSelectedMediaFileId] = useState<string | null>(null);
+export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, onCurrentTimeChange }: ShowMediaPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [durationMs, setDurationMs] = useState(0);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
@@ -99,25 +100,6 @@ export function ShowMediaPlayer({ show, serverUrl }: ShowMediaPlayerProps) {
         offsetMs: cue.cueOffsetMs as number,
       }));
   }, [show.cues]);
-
-  useEffect(() => {
-    if (!selectedMediaFileId) {
-      return;
-    }
-
-    const stillExists = show.mediaFiles.some((file) => file.id === selectedMediaFileId);
-    if (stillExists) {
-      return;
-    }
-
-    audioRef.current?.pause();
-    videoRef.current?.pause();
-    setSelectedMediaFileId(null);
-    setIsPlaying(false);
-    setDurationMs(0);
-    setCurrentTimeMs(0);
-    setPlaybackError(null);
-  }, [show.mediaFiles, selectedMediaFileId]);
 
   useEffect(() => {
     audioRef.current?.pause();
@@ -173,7 +155,9 @@ export function ShowMediaPlayer({ show, serverUrl }: ShowMediaPlayerProps) {
       return;
     }
 
-    setCurrentTimeMs(mediaElement.currentTime * 1000);
+    const newCurrentTimeMs = mediaElement.currentTime * 1000;
+    setCurrentTimeMs(newCurrentTimeMs);
+    onCurrentTimeChange?.(newCurrentTimeMs);
   }
 
   function updateFromElementMetadata() {
@@ -249,7 +233,7 @@ export function ShowMediaPlayer({ show, serverUrl }: ShowMediaPlayerProps) {
           />
         </div>
 
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="grid w-full gap-4 lg:grid-cols-[1fr_2fr_1fr]">
           <div className="flex items-center gap-3">
             {isVideo && mediaSrc ? (
               <video
@@ -265,35 +249,24 @@ export function ShowMediaPlayer({ show, serverUrl }: ShowMediaPlayerProps) {
               />
             ) : null}
             {!isVideo ? (
-              <audio
-                ref={audioRef}
-                src={mediaSrc ?? undefined}
-                preload="metadata"
-                onLoadedMetadata={updateFromElementMetadata}
-                onTimeUpdate={updateFromElementTime}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                onEnded={() => setIsPlaying(false)}
-                onError={() => setPlaybackError("Playback failed.")}
-                className="hidden"
-              />
+              <>
+                <audio
+                  ref={audioRef}
+                  src={mediaSrc ?? undefined}
+                  preload="metadata"
+                  onLoadedMetadata={updateFromElementMetadata}
+                  onTimeUpdate={updateFromElementTime}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onEnded={() => setIsPlaying(false)}
+                  onError={() => setPlaybackError("Playback failed.")}
+                  className="hidden"
+                />
+                <div className="text-sm text-muted-foreground overflow-hidden overflow-ellipsis whitespace-nowrap lg:max-w-[250px]">
+                  {selectedMediaFile?.originalName || "No media selected"}
+                </div>
+              </>
             ) : null}
-
-            <div className="min-w-[220px] space-y-1">
-              <div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Media file</div>
-              <select
-                className="flex h-10 w-full border border-input bg-background px-3 py-2 text-sm"
-                value={selectedMediaFileId ?? ""}
-                onChange={(event) => setSelectedMediaFileId(event.target.value || null)}
-              >
-                <option value="">Select media file</option>
-                {show.mediaFiles.map((mediaFile) => (
-                  <option key={mediaFile.id} value={mediaFile.id}>
-                    {mediaFile.originalName}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-2">

@@ -7,15 +7,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/cli
 import { Input } from "@/client/components/ui/input";
 import {
   Menubar,
+  MenubarCheckboxItem,
   MenubarContent,
   MenubarItem,
   MenubarMenu,
+  MenubarSeparator,
   MenubarShortcut,
   MenubarTrigger,
 } from "@/client/components/ui/menubar";
 import { Textarea } from "@/client/components/ui/textarea";
 import { ShowMediaPlayer } from "@/client/features/shows/show-media-player";
 import { formatOffset } from "@/client/lib/utils";
+import { useShowWorkspaceStore, resetAddCueForm, resetAddTrackForm, getOrCreateStore, ShowWorkspaceStoreContext } from "@/client/features/shows/show-workspace-store";
 import {
   DndContext,
   closestCenter,
@@ -38,6 +41,7 @@ import { GripVertical, Trash2, Upload } from "lucide-react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/api/root";
 import type { ShowEvent } from "@/shared/types/domain";
+import { useSnapshot } from "valtio";
 
 type RouterOutput = inferRouterOutputs<AppRouter>;
 type ShowDetail = NonNullable<RouterOutput["show"]["getDetail"]>;
@@ -304,35 +308,70 @@ function SortableCueRow({
   );
 }
 
+/** Provider component for the workspace store */
+function ShowWorkspaceStoreProvider({
+  showId,
+  children,
+}: {
+  showId: string;
+  children: React.ReactNode;
+}) {
+  const store = useMemo(() => {
+    return getOrCreateStore(showId);
+  }, [showId]);
+
+  return (
+    <ShowWorkspaceStoreContext.Provider value={store}>
+      {children}
+    </ShowWorkspaceStoreContext.Provider>
+  );
+}
+
+/** Wrapper component that provides the valtio store for the show workspace */
 export function ShowWorkspace() {
   const { showId } = useParams();
+
+  if (!showId) {
+    return (
+      <Card className="bg-card/75">
+        <CardHeader>
+          <CardTitle>Invalid show</CardTitle>
+          <CardDescription>Could not find show ID in route.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <ShowWorkspaceStoreProvider showId={showId}>
+      <ShowWorkspaceContent />
+    </ShowWorkspaceStoreProvider>
+  );
+}
+
+/** Inner component that uses the valtio store */
+function ShowWorkspaceContent() {
   const navigate = useNavigate();
   const utils = trpc.useUtils();
+  const { showId } = useParams();
+  const store = useShowWorkspaceStore();
+  const snapshot = useSnapshot(store);
+
   const addCueFormRef = useRef<HTMLFormElement | null>(null);
   const addCueCommentRef = useRef<HTMLTextAreaElement | null>(null);
-  const [newCueComment, setNewCueComment] = useState("");
-  const [newCueOffset, setNewCueOffset] = useState("10000");
-  const [newTrackName, setNewTrackName] = useState("");
-  const [trackToRemoveId, setTrackToRemoveId] = useState("");
-  const [activeModal, setActiveModal] = useState<"addCue" | "addTrack" | "removeTrack" | "media" | null>(null);
   const [cueCommentDrafts, setCueCommentDrafts] = useState<Record<string, string>>({});
   const [cueTrackValueDrafts, setCueTrackValueDrafts] = useState<Record<string, string>>({});
   const [orderedCueIds, setOrderedCueIds] = useState<string[]>([]);
-  const [selectedCueId, setSelectedCueId] = useState<string | null>(null);
-  const [selectedUpload, setSelectedUpload] = useState<File | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isDragActive, setIsDragActive] = useState(false);
   const [deletingMediaFileId, setDeletingMediaFileId] = useState<string | null>(null);
   const isDraggingRef = useRef(false);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const selectedUploadPreviewUrl = useMemo(() => {
-    if (!selectedUpload) {
+    if (!snapshot.selectedUpload) {
       return null;
     }
 
-    return URL.createObjectURL(selectedUpload);
-  }, [selectedUpload]);
+    return URL.createObjectURL(snapshot.selectedUpload);
+  }, [snapshot.selectedUpload]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -367,10 +406,10 @@ export function ShowWorkspace() {
   );
 
   const createCueMutation = trpc.cue.create.useMutation({
-    onSuccess: async () => {
-      setNewCueComment("");
-      setNewCueOffset("10000");
-      setActiveModal(null);
+    onSuccess: async (createdCue) => {
+      store.selectedCueId = createdCue.id;
+      resetAddCueForm(store);
+      store.activeModal = null;
       if (showId) {
         await utils.show.getDetail.invalidate({ showId });
       }
@@ -379,8 +418,8 @@ export function ShowWorkspace() {
 
   const createTrackMutation = trpc.track.create.useMutation({
     onSuccess: async () => {
-      setNewTrackName("");
-      setActiveModal(null);
+      resetAddTrackForm(store);
+      store.activeModal = null;
       if (showId) {
         await utils.show.getDetail.invalidate({ showId });
       }
@@ -388,8 +427,8 @@ export function ShowWorkspace() {
   });
   const deleteTrackMutation = trpc.track.delete.useMutation({
     onSuccess: async () => {
-      setTrackToRemoveId("");
-      setActiveModal(null);
+      store.trackToRemoveId = "";
+      store.activeModal = null;
       if (showId) {
         await utils.show.getDetail.invalidate({ showId });
       }
@@ -452,7 +491,12 @@ export function ShowWorkspace() {
     () => orderedCueIds.flatMap((id) => (cueById.get(id) ? [cueById.get(id)!] : [])),
     [orderedCueIds, cueById],
   );
+  const selectedCue = useMemo(
+    () => (snapshot.selectedCueId ? cueById.get(snapshot.selectedCueId) ?? null : null),
+    [snapshot.selectedCueId, cueById],
+  );
   const canTake = Boolean(showId && show?.nextCueId && !takeShowMutation.isPending);
+  const canMoveCueToNow = Boolean(selectedCue && !updateCueMutation.isPending);
 
   function handleTake() {
     if (!showId || !show?.nextCueId || takeShowMutation.isPending) {
@@ -460,6 +504,18 @@ export function ShowWorkspace() {
     }
 
     takeShowMutation.mutate({ showId });
+  }
+
+  function handleMoveCueToNow() {
+    if (!selectedCue || updateCueMutation.isPending) {
+      return;
+    }
+
+    updateCueMutation.mutate({
+      id: selectedCue.id,
+      comment: selectedCue.comment,
+      cueOffsetMs: Math.max(0, Math.round(store.currentTimeMs)),
+    });
   }
 
   function handleDragStart(_event: DragStartEvent) {
@@ -524,6 +580,11 @@ export function ShowWorkspace() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      const isEditableTarget =
+        target instanceof HTMLElement &&
+        (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT");
+
       if (event.code === "F12") {
         event.preventDefault();
         if (!showId || !show?.nextCueId || takeShowMutation.isPending) {
@@ -534,9 +595,19 @@ export function ShowWorkspace() {
         return;
       }
 
+      if (event.ctrlKey && event.code === "KeyM") {
+        if (isEditableTarget) {
+          return;
+        }
+
+        event.preventDefault();
+        handleMoveCueToNow();
+        return;
+      }
+
       if (event.ctrlKey && event.altKey && event.code === "Space") {
         event.preventDefault();
-        setActiveModal("addCue");
+        store.activeModal = "addCue";
       }
     };
 
@@ -544,11 +615,18 @@ export function ShowWorkspace() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleTake, show?.nextCueId, showId, takeShowMutation.isPending]);
+  }, [handleMoveCueToNow, handleTake, show?.nextCueId, showId, takeShowMutation.isPending, store]);
 
   useEffect(() => {
-    if (activeModal !== "addCue") {
+    if (store.activeModal !== "addCue") {
       return;
+    }
+
+    // When opening the Add Cue dialog, set the offset to the current media time (or default)
+    if (store.currentTimeMs > 0) {
+      store.newCueOffset = String(Math.round(store.currentTimeMs));
+    } else {
+      store.newCueOffset = "10000";
     }
 
     const frameId = window.requestAnimationFrame(() => {
@@ -558,21 +636,29 @@ export function ShowWorkspace() {
     return () => {
       window.cancelAnimationFrame(frameId);
     };
-  }, [activeModal]);
+  }, [store.activeModal, store.currentTimeMs, store]);
 
   useEffect(() => {
     if (!show?.tracks.length) {
-      setTrackToRemoveId("");
+      store.trackToRemoveId = "";
       return;
     }
 
-    setTrackToRemoveId((current) => {
-      if (show.tracks.some((track) => track.id === current)) {
-        return current;
-      }
-      return show.tracks[show.tracks.length - 1]?.id ?? "";
-    });
-  }, [show?.tracks]);
+    if (!show.tracks.some((track) => track.id === store.trackToRemoveId)) {
+      store.trackToRemoveId = show.tracks[show.tracks.length - 1]?.id ?? "";
+    }
+  }, [show?.tracks, store]);
+
+  useEffect(() => {
+    if (!show || !snapshot.selectedMediaFileId) {
+      return;
+    }
+
+    const stillExists = show.mediaFiles.some((file) => file.id === snapshot.selectedMediaFileId);
+    if (!stillExists) {
+      store.selectedMediaFileId = null;
+    }
+  }, [show, snapshot.selectedMediaFileId, store]);
 
   useEffect(() => {
     return () => {
@@ -594,16 +680,16 @@ export function ShowWorkspace() {
   }
 
   async function uploadSelectedFile() {
-    if (!showId || !selectedUpload) {
+    if (!showId || !store.selectedUpload) {
       return;
     }
 
-    setIsUploading(true);
-    setUploadError(null);
+    store.isUploading = true;
+    store.uploadError = null;
 
     try {
       const formData = new FormData();
-      formData.append("file", selectedUpload);
+      formData.append("file", store.selectedUpload);
 
       const response = await fetch(`${SERVER_URL}/api/shows/${showId}/uploads`, {
         method: "POST",
@@ -616,16 +702,16 @@ export function ShowWorkspace() {
         throw new Error(payload?.message ?? "Upload failed.");
       }
 
-      setSelectedUpload(null);
+      store.selectedUpload = null;
       if (uploadInputRef.current) {
         uploadInputRef.current.value = "";
       }
 
       await utils.show.getDetail.invalidate({ showId });
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : "Upload failed.");
+      store.uploadError = error instanceof Error ? error.message : "Upload failed.";
     } finally {
-      setIsUploading(false);
+      store.isUploading = false;
     }
   }
 
@@ -635,7 +721,7 @@ export function ShowWorkspace() {
     }
 
     setDeletingMediaFileId(mediaFileId);
-    setUploadError(null);
+    store.uploadError = null;
 
     try {
       const response = await fetch(`${SERVER_URL}/api/shows/${showId}/uploads/${mediaFileId}`, {
@@ -650,19 +736,19 @@ export function ShowWorkspace() {
 
       await utils.show.getDetail.invalidate({ showId });
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : "Delete failed.");
+      store.uploadError = error instanceof Error ? error.message : "Delete failed.";
     } finally {
       setDeletingMediaFileId(null);
     }
   }
 
   function handleFileSelection(file: File | null) {
-    setUploadError(null);
-    setSelectedUpload(file);
+    store.uploadError = null;
+    store.selectedUpload = file;
   }
 
   function submitNewCue() {
-    const comment = newCueComment.trim();
+    const comment = store.newCueComment.trim();
 
     if (!showId || !comment || createCueMutation.isPending) {
       return;
@@ -671,7 +757,7 @@ export function ShowWorkspace() {
     createCueMutation.mutate({
       showId,
       comment,
-      cueOffsetMs: newCueOffset ? Number(newCueOffset) : null,
+      cueOffsetMs: store.newCueOffset ? Number(store.newCueOffset) : null,
     });
   }
 
@@ -685,9 +771,13 @@ export function ShowWorkspace() {
                 <MenubarMenu>
                   <MenubarTrigger>Cue</MenubarTrigger>
                   <MenubarContent>
-                    <MenubarItem onSelect={() => setActiveModal("addCue")}>
+                    <MenubarItem onSelect={() => (store.activeModal = "addCue")}>
                       Add cue
                       <MenubarShortcut>Ctrl+Alt+Space</MenubarShortcut>
+                    </MenubarItem>
+                    <MenubarItem disabled={!canMoveCueToNow} onSelect={handleMoveCueToNow}>
+                      Move cue to now
+                      <MenubarShortcut>Ctrl+M</MenubarShortcut>
                     </MenubarItem>
                   </MenubarContent>
                 </MenubarMenu>
@@ -703,10 +793,10 @@ export function ShowWorkspace() {
                 <MenubarMenu>
                   <MenubarTrigger>Track</MenubarTrigger>
                   <MenubarContent>
-                    <MenubarItem onSelect={() => setActiveModal("addTrack")}>Add track</MenubarItem>
+                    <MenubarItem onSelect={() => (store.activeModal = "addTrack")}>Add track</MenubarItem>
                     <MenubarItem
                       disabled={!show.tracks.length || deleteTrackMutation.isPending}
-                      onSelect={() => setActiveModal("removeTrack")}
+                      onSelect={() => (store.activeModal = "removeTrack")}
                     >
                       Remove track
                     </MenubarItem>
@@ -715,7 +805,24 @@ export function ShowWorkspace() {
                 <MenubarMenu>
                   <MenubarTrigger>Media</MenubarTrigger>
                   <MenubarContent>
-                    <MenubarItem onSelect={() => setActiveModal("media")}>Open media manager</MenubarItem>
+                    <MenubarItem onSelect={() => (store.activeModal = "media")}>Open media manager</MenubarItem>
+                    <MenubarSeparator/>
+                    {show.mediaFiles.length === 0 ? (
+                      <MenubarItem disabled>No media files</MenubarItem>
+                    ) : (
+                      show.mediaFiles.map((mediaFile) => (
+                        <MenubarCheckboxItem
+                          key={mediaFile.id}
+                          checked={snapshot.selectedMediaFileId === mediaFile.id}
+                          onCheckedChange={() => {
+                            store.selectedMediaFileId =
+                              snapshot.selectedMediaFileId === mediaFile.id ? null : mediaFile.id;
+                          }}
+                        >
+                          {mediaFile.originalName}
+                        </MenubarCheckboxItem>
+                      ))
+                    )}
                   </MenubarContent>
                 </MenubarMenu>
               </Menubar>
@@ -775,8 +882,8 @@ export function ShowWorkspace() {
                     onSetNext={(cueId) => showId && setNextCueMutation.mutate({ showId, cueId })}
                     onDelete={(cueId) => deleteCueMutation.mutate({ id: cueId })}
                     isDeleting={deleteCueMutation.isPending}
-                    isSelected={selectedCueId === cue.id}
-                    onSelect={(cueId) => setSelectedCueId(cueId)}
+                    isSelected={snapshot.selectedCueId === cue.id}
+                    onSelect={(cueId) => (store.selectedCueId = cueId)}
                   />
                 ))}
               </div>
@@ -791,10 +898,13 @@ export function ShowWorkspace() {
         </div>
 
         <ModalDialog
-          open={activeModal === "addCue"}
+          open={store.activeModal === "addCue"}
           title="Add cue"
           description="Create a show-level cue across every track."
-          onClose={() => setActiveModal(null)}
+          onClose={() => {
+            resetAddCueForm(store);
+            store.activeModal = null;
+          }}
         >
           <form
             ref={addCueFormRef}
@@ -802,7 +912,8 @@ export function ShowWorkspace() {
             onKeyDown={(event) => {
               if (event.key === "Escape") {
                 event.preventDefault();
-                setActiveModal(null);
+                resetAddCueForm(store);
+                store.activeModal = null;
                 return;
               }
 
@@ -820,16 +931,19 @@ export function ShowWorkspace() {
           >
             <Textarea
               ref={addCueCommentRef}
-              value={newCueComment}
-              onChange={(event) => setNewCueComment(event.target.value)}
+              value={snapshot.newCueComment}
+              onChange={(event) => (store.newCueComment = event.target.value)}
               placeholder="Cue comment"
             />
-            <Input value={newCueOffset} onChange={(event) => setNewCueOffset(event.target.value)} placeholder="Offset ms" />
+            <Input value={snapshot.newCueOffset} onChange={(event) => (store.newCueOffset = event.target.value)} placeholder="Offset ms" />
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setActiveModal(null)}>
+              <Button type="button" variant="outline" onClick={() => {
+                resetAddCueForm(store);
+                store.activeModal = null;
+              }}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={!newCueComment.trim() || createCueMutation.isPending}>
+              <Button type="submit" disabled={!snapshot.newCueComment.trim() || createCueMutation.isPending}>
                 Add cue
               </Button>
             </div>
@@ -837,25 +951,31 @@ export function ShowWorkspace() {
         </ModalDialog>
 
         <ModalDialog
-          open={activeModal === "addTrack"}
+          open={snapshot.activeModal === "addTrack"}
           title="Add track"
           description="Backfills a technical identifier slot for every existing cue."
-          onClose={() => setActiveModal(null)}
+          onClose={() => {
+            resetAddTrackForm(store);
+            store.activeModal = null;
+          }}
         >
           <form
             className="space-y-3"
             onSubmit={(event) => {
               event.preventDefault();
               if (!showId) return;
-              createTrackMutation.mutate({ showId, name: newTrackName });
+              createTrackMutation.mutate({ showId, name: store.newTrackName });
             }}
           >
-            <Input value={newTrackName} onChange={(event) => setNewTrackName(event.target.value)} placeholder="Track name" />
+            <Input value={snapshot.newTrackName} onChange={(event) => (store.newTrackName = event.target.value)} placeholder="Track name" />
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setActiveModal(null)}>
+              <Button type="button" variant="outline" onClick={() => {
+                resetAddTrackForm(store);
+                store.activeModal = null;
+              }}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={!newTrackName.trim() || createTrackMutation.isPending}>
+              <Button type="submit" disabled={!snapshot.newTrackName.trim() || createTrackMutation.isPending}>
                 Add track
               </Button>
             </div>
@@ -863,23 +983,23 @@ export function ShowWorkspace() {
         </ModalDialog>
 
         <ModalDialog
-          open={activeModal === "removeTrack"}
+          open={snapshot.activeModal === "removeTrack"}
           title="Remove track"
           description="Remove a track and all associated technical identifier values."
-          onClose={() => setActiveModal(null)}
+          onClose={() => (store.activeModal = null)}
         >
           <form
             className="space-y-3"
             onSubmit={(event) => {
               event.preventDefault();
-              if (!trackToRemoveId) return;
-              deleteTrackMutation.mutate({ id: trackToRemoveId });
+              if (!store.trackToRemoveId) return;
+              deleteTrackMutation.mutate({ id: store.trackToRemoveId });
             }}
           >
             <select
               className="flex h-10 w-full border border-input bg-background px-3 py-2 text-sm"
-              value={trackToRemoveId}
-              onChange={(event) => setTrackToRemoveId(event.target.value)}
+              value={snapshot.trackToRemoveId}
+              onChange={(event) => (store.trackToRemoveId = event.target.value)}
             >
               {show.tracks.map((track) => (
                 <option key={track.id} value={track.id}>
@@ -888,22 +1008,27 @@ export function ShowWorkspace() {
               ))}
             </select>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setActiveModal(null)}>
+              <Button type="button" variant="outline" onClick={() => (store.activeModal = null)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={!trackToRemoveId || deleteTrackMutation.isPending}>
+              <Button type="submit" disabled={!snapshot.trackToRemoveId || deleteTrackMutation.isPending}>
                 Remove track
               </Button>
             </div>
           </form>
         </ModalDialog>
       </div>
-      <ShowMediaPlayer show={show} serverUrl={SERVER_URL} />
+      <ShowMediaPlayer 
+        show={show} 
+        serverUrl={SERVER_URL}
+        selectedMediaFileId={snapshot.selectedMediaFileId}
+        onCurrentTimeChange={(ms) => (store.currentTimeMs = ms)}
+      />
       <SheetDialog
-        open={activeModal === "media"}
+        open={snapshot.activeModal === "media"}
         title="Media manager"
         description="Upload, preview, and remove show media without leaving the cue workspace."
-        onClose={() => setActiveModal(null)}
+        onClose={() => (store.activeModal = null)}
       >
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -925,29 +1050,29 @@ export function ShowWorkspace() {
             />
 
             <div
-              className={`border-2 border-dashed p-5 transition ${isDragActive ? "border-primary bg-primary/5" : "border-border/70 bg-background/35"
+              className={`border-2 border-dashed p-5 transition ${store.isDragActive ? "border-primary bg-primary/5" : "border-border/70 bg-background/35"
                 }`}
               onDragEnter={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                setIsDragActive(true);
+                store.isDragActive = true;
               }}
               onDragOver={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                if (!isDragActive) {
-                  setIsDragActive(true);
+                if (!store.isDragActive) {
+                  store.isDragActive = true;
                 }
               }}
               onDragLeave={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                setIsDragActive(false);
+                store.isDragActive = false;
               }}
               onDrop={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
-                setIsDragActive(false);
+                store.isDragActive = false;
                 handleFileSelection(event.dataTransfer.files?.[0] ?? null);
               }}
             >
@@ -962,31 +1087,31 @@ export function ShowWorkspace() {
                   <Button type="button" variant="outline" onClick={() => uploadInputRef.current?.click()}>
                     Choose file
                   </Button>
-                  <Button type="submit" disabled={!selectedUpload || isUploading} className="gap-2">
+                  <Button type="submit" disabled={!store.selectedUpload || store.isUploading} className="gap-2">
                     <Upload size={16} />
-                    {isUploading ? "Uploading..." : "Upload media"}
+                    {store.isUploading ? "Uploading..." : "Upload media"}
                   </Button>
                 </div>
               </div>
 
-              {selectedUpload ? (
+              {store.selectedUpload ? (
                 <div className="mt-4 grid gap-4 border border-border/60 bg-background/55 p-4 lg:grid-cols-[220px_1fr]">
                   <div>
                     {selectedUploadPreviewUrl ? (
                       <MediaPreview
                         src={selectedUploadPreviewUrl}
-                        mimeType={selectedUpload.type}
-                        fileName={selectedUpload.name}
-                        alt={selectedUpload.name}
+                        mimeType={store.selectedUpload.type}
+                        fileName={store.selectedUpload.name}
+                        alt={store.selectedUpload.name}
                       />
                     ) : null}
                   </div>
                   <div className="space-y-2">
                     <div className="font-medium">Ready to upload</div>
-                    <div className="text-sm text-muted-foreground">{selectedUpload.name}</div>
+                    <div className="text-sm text-muted-foreground">{store.selectedUpload.name}</div>
                     <div className="text-sm text-muted-foreground">
-                      {formatFileSize(selectedUpload.size)}
-                      {selectedUpload.type ? ` • ${selectedUpload.type}` : ""}
+                      {formatFileSize(store.selectedUpload.size)}
+                      {store.selectedUpload.type ? ` • ${store.selectedUpload.type}` : ""}
                     </div>
                     <div>
                       <Button type="button" variant="outline" size="sm" onClick={() => handleFileSelection(null)}>
@@ -999,7 +1124,7 @@ export function ShowWorkspace() {
             </div>
           </form>
 
-          {uploadError ? <p className="text-sm text-destructive">{uploadError}</p> : null}
+          {store.uploadError ? <p className="text-sm text-destructive">{store.uploadError}</p> : null}
 
           <div className="space-y-3">
             {show.mediaFiles.length ? (

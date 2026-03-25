@@ -41,6 +41,7 @@ Build a live-production coordination app for video crews. The system lets authen
 
 - Vite
 - React + TypeScript
+- Valtio for local state storage
 - Tailwind CSS + shadcn/ui
 - TanStack Query via tRPC React integration
 - Zod shared validation schemas
