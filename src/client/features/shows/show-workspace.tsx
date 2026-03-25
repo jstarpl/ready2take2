@@ -788,6 +788,9 @@ function ShowWorkspaceContent() {
                       Take
                       <MenubarShortcut>F12</MenubarShortcut>
                     </MenubarItem>
+                    <MenubarItem onSelect={() => window.open(`/shows/${showId}/cue-list-view`, '_blank')}>
+                      Open Cue List View
+                    </MenubarItem>
                   </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>

@@ -3,6 +3,7 @@ import { LoginForm } from "@/client/features/auth/login-form";
 import { ProjectShell } from "@/client/features/projects/project-shell";
 import { ProjectDetail } from "@/client/features/shows/project-detail";
 import { ShowWorkspace } from "@/client/features/shows/show-workspace";
+import { CueListView } from "@/client/features/shows/cue-list-view";
 import { trpc } from "@/client/lib/trpc";
 
 export function AppRoutes() {
@@ -23,6 +24,7 @@ export function AppRoutes() {
         <Route path="projects/:projectId" element={<ProjectDetail />} />
       </Route>
       <Route path="/shows/:showId" element={<ShowWorkspace />} />
+      <Route path="/shows/:showId/cue-list-view" element={<CueListView />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
