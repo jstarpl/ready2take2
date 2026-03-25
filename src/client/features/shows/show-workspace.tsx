@@ -416,6 +416,13 @@ export function ShowWorkspace() {
       }
     },
   });
+  const takeShowMutation = trpc.show.take.useMutation({
+    onSuccess: async () => {
+      if (showId) {
+        await utils.show.getDetail.invalidate({ showId });
+      }
+    },
+  });
   const updateCueMutation = trpc.cue.update.useMutation({
     onSuccess: async () => {
       if (showId) {
@@ -444,6 +451,15 @@ export function ShowWorkspace() {
     () => orderedCueIds.flatMap((id) => (cueById.get(id) ? [cueById.get(id)!] : [])),
     [orderedCueIds, cueById],
   );
+  const canTake = Boolean(showId && show?.nextCueId && !takeShowMutation.isPending);
+
+  function handleTake() {
+    if (!showId || !show?.nextCueId || takeShowMutation.isPending) {
+      return;
+    }
+
+    takeShowMutation.mutate({ showId });
+  }
 
   function handleDragStart(_event: DragStartEvent) {
     isDraggingRef.current = true;
@@ -507,6 +523,16 @@ export function ShowWorkspace() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code === "F12") {
+        event.preventDefault();
+        if (!showId || !show?.nextCueId || takeShowMutation.isPending) {
+          return;
+        }
+
+        handleTake();
+        return;
+      }
+
       if (event.ctrlKey && event.altKey && event.code === "Space") {
         event.preventDefault();
         setActiveModal("addCue");
@@ -517,7 +543,7 @@ export function ShowWorkspace() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [handleTake, show?.nextCueId, showId, takeShowMutation.isPending]);
 
   useEffect(() => {
     if (activeModal !== "addCue") {
@@ -665,6 +691,15 @@ export function ShowWorkspace() {
                   </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>
+                  <MenubarTrigger>Production</MenubarTrigger>
+                  <MenubarContent>
+                    <MenubarItem disabled={!canTake} onSelect={handleTake}>
+                      Take
+                      <MenubarShortcut>F12</MenubarShortcut>
+                    </MenubarItem>
+                  </MenubarContent>
+                </MenubarMenu>
+                <MenubarMenu>
                   <MenubarTrigger>Track</MenubarTrigger>
                   <MenubarContent>
                     <MenubarItem onSelect={() => setActiveModal("addTrack")}>Add track</MenubarItem>
@@ -701,14 +736,14 @@ export function ShowWorkspace() {
           <CardContent className="overflow-auto">
             <div className="min-w-[900px] space-y-4">
               <div
-                className="gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground grid"
+                className="gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground grid mx-3"
                 style={{ gridTemplateColumns: `150px 180px 220px repeat(${Math.max(show.tracks.length, 1)}, minmax(180px, 1fr)) min-content` }}
               >
-                <div>Offset</div>
-                <div>Current / Next</div>
-                <div>Comment</div>
+                <div className="px-3">Offset</div>
+                <div className="px-3">Current / Next</div>
+                <div className="px-3">Comment</div>
                 {show.tracks.map((track) => (
-                  <div key={track.id}>{track.name}</div>
+                  <div key={track.id} className="px-3">{track.name}</div>
                 ))}
                 <div></div>
               </div>

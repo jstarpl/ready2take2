@@ -59,6 +59,59 @@ export async function assignShowCuePointer(showId: string, cueId: string | null,
   return show;
 }
 
+export async function takeShow(showId: string) {
+  return appDataSource.transaction(async (manager) => {
+    const showRepository = manager.getRepository(Show);
+
+    const show = await showRepository.findOne({
+      where: { id: showId },
+      relations: {
+        cues: true,
+      },
+      order: {
+        cues: {
+          orderKey: "ASC",
+        },
+      },
+    });
+
+    if (!show) {
+      throw new Error("Show not found.");
+    }
+
+    if (!show.nextCueId) {
+      throw new Error("No next cue is set for this show.");
+    }
+
+    const nextCueIndex = show.cues.findIndex((cue) => cue.id === show.nextCueId);
+
+    if (nextCueIndex === -1) {
+      throw new Error("Next cue does not belong to the selected show.");
+    }
+
+    const currentCueId = show.cues[nextCueIndex]?.id ?? null;
+    const followingCueId = show.cues[nextCueIndex + 1]?.id ?? null;
+
+    show.currentCueId = currentCueId;
+    show.nextCueId = followingCueId;
+
+    const savedShow = await showRepository.save(show);
+
+    showEvents.publish({
+      type: "show.currentCueChanged",
+      showId: savedShow.id,
+      entityId: currentCueId ?? savedShow.id,
+    });
+    showEvents.publish({
+      type: "show.nextCueChanged",
+      showId: savedShow.id,
+      entityId: followingCueId ?? savedShow.id,
+    });
+
+    return savedShow;
+  });
+}
+
 export async function updateShowDetails(showId: string, name: string, status: Show["status"]) {
   const showRepository = appDataSource.getRepository(Show);
   const show = await showRepository.findOneByOrFail({ id: showId });
