@@ -1,5 +1,6 @@
 import { createTRPCRouter } from "./trpc";
 import { authRouter } from "./routers/auth";
+import { cameraColorSettingRouter } from "./routers/camera-color-setting";
 import { cueRouter } from "./routers/cue";
 import { cueTrackValueRouter } from "./routers/cue-track-value";
 import { projectRouter } from "./routers/project";
@@ -13,6 +14,7 @@ export const appRouter = createTRPCRouter({
   track: trackRouter,
   cue: cueRouter,
   cueTrackValue: cueTrackValueRouter,
+  cameraColorSetting: cameraColorSettingRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -24,6 +24,7 @@ export async function createShowWithDefaultTrack(projectId: string, name: string
       show: savedShow,
       showId: savedShow.id,
       name: "Camera",
+      type: "camera",
       position: 0,
     });
 

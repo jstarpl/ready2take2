@@ -43,9 +43,14 @@ export function ProjectShell() {
                 <CardTitle>Projects</CardTitle>
                 <CardDescription>Manage productions and jump into live shows.</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={() => logoutMutation.mutate()}>
-                Logout
-              </Button>
+              <div className="flex gap-2">
+                <Link to="/settings" className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
+                  Settings
+                </Link>
+                <Button variant="outline" size="sm" onClick={() => logoutMutation.mutate()}>
+                  Logout
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">

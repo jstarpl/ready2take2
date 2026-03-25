@@ -3,10 +3,13 @@ import { BaseRecord } from "./BaseRecord";
 import type { CueTrackValue } from "./CueTrackValue";
 import type { Show } from "./Show";
 
+export type TrackType = "custom" | "camera";
+
 export class Track extends BaseRecord {
   show!: Show;
   showId!: string;
   name!: string;
+  type!: TrackType;
   position!: number;
   cueTrackValues!: CueTrackValue[];
 }
@@ -21,6 +24,7 @@ export const TrackSchema = new EntitySchema<Track>({
     updatedAt: { type: "datetime", updateDate: true },
     showId: { type: String },
     name: { type: String },
+    type: { type: String, default: "custom" },
     position: { type: Number, default: 0 },
   },
   relations: {

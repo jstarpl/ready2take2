@@ -131,6 +131,7 @@ interface SortableCueRowProps {
   gridTemplateColumns: string;
   cueCommentDraft: string;
   cueTrackValueDrafts: Record<string, string>;
+  cameraColors: Map<string, string>;
   onCommentChange: (cueId: string, value: string) => void;
   onCommentBlur: (cue: CueRow, value: string) => void;
   onTrackValueChange: (key: string, value: string) => void;
@@ -214,6 +215,7 @@ function SortableCueRow({
   gridTemplateColumns,
   cueCommentDraft,
   cueTrackValueDrafts,
+  cameraColors,
   onCommentChange,
   onCommentBlur,
   onTrackValueChange,
@@ -285,14 +287,24 @@ function SortableCueRow({
       />
       {show.tracks.map((track) => {
         const draftKey = `${cue.id}:${track.id}`;
+        const currentValue = cueTrackValueDrafts[draftKey] ?? "";
+        const swatchColor = track.type === "camera" ? cameraColors.get(currentValue.trim()) : undefined;
         return (
-          <Input
-            key={track.id}
-            value={cueTrackValueDrafts[draftKey] ?? ""}
-            placeholder="Technical identifier"
-            onChange={(event) => onTrackValueChange(draftKey, event.target.value)}
-            onBlur={(event) => onTrackValueBlur(cue, track.id, event.target.value)}
-          />
+          <div key={track.id} className="flex items-center gap-1.5">
+            {track.type === "camera" && (
+              <div
+                className="h-5 w-5 shrink-0 rounded-full border border-border/50 transition-colors"
+                style={{ backgroundColor: swatchColor ?? "transparent" }}
+                title={swatchColor ? `Color for "${currentValue}"` : "No color assigned"}
+              />
+            )}
+            <Input
+              value={currentValue}
+              placeholder="Technical identifier"
+              onChange={(event) => onTrackValueChange(draftKey, event.target.value)}
+              onBlur={(event) => onTrackValueBlur(cue, track.id, event.target.value)}
+            />
+          </div>
         );
       })}
       <div className="flex flex-wrap gap-2">
@@ -386,6 +398,15 @@ function ShowWorkspaceContent() {
     { showId: showId ?? "" },
     { enabled: Boolean(showId) },
   );
+
+  const cameraColorSettingsQuery = trpc.cameraColorSetting.list.useQuery();
+  const cameraColors = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const setting of cameraColorSettingsQuery.data ?? []) {
+      map.set(setting.identifier, setting.color);
+    }
+    return map;
+  }, [cameraColorSettingsQuery.data]);
 
   trpc.show.subscribe.useSubscription(
     { showId: showId ?? "" },
@@ -884,7 +905,14 @@ function ShowWorkspaceContent() {
             <div className="px-3">Current / Next</div>
             <div className="px-3">Comment</div>
             {show.tracks.map((track) => (
-              <div key={track.id} className="px-3">{track.name}</div>
+              <div key={track.id} className="px-3 flex items-center gap-1.5">
+                {track.name}
+                {track.type === "camera" && (
+                  <span className="rounded bg-blue-500/20 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-400">
+                    cam
+                  </span>
+                )}
+              </div>
             ))}
             <div></div>
           </div>
@@ -900,6 +928,7 @@ function ShowWorkspaceContent() {
                     gridTemplateColumns={`80px 150px 180px 220px repeat(${Math.max(show.tracks.length, 1)}, minmax(180px, 1fr)) min-content`}
                     cueCommentDraft={cueCommentDrafts[cue.id] ?? ""}
                     cueTrackValueDrafts={cueTrackValueDrafts}
+                    cameraColors={cameraColors}
                     onCommentChange={(cueId, value) =>
                       setCueCommentDrafts((d) => ({ ...d, [cueId]: value }))
                     }
@@ -1013,10 +1042,28 @@ function ShowWorkspaceContent() {
             onSubmit={(event) => {
               event.preventDefault();
               if (!showId) return;
-              createTrackMutation.mutate({ showId, name: store.newTrackName });
+              createTrackMutation.mutate({ showId, name: store.newTrackName, type: store.newTrackType });
             }}
           >
             <Input value={snapshot.newTrackName} onChange={(event) => (store.newTrackName = event.target.value)} placeholder="Track name" />
+            <div className="space-y-1">
+              <div className="text-sm text-muted-foreground">Track type</div>
+              <div className="flex gap-3">
+                {(["custom", "camera"] as const).map((type) => (
+                  <label key={type} className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="radio"
+                      name="newTrackType"
+                      value={type}
+                      checked={snapshot.newTrackType === type}
+                      onChange={() => (store.newTrackType = type)}
+                      className="accent-primary"
+                    />
+                    <span className="capitalize text-sm">{type}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => {
                 resetAddTrackForm(store);
@@ -1052,7 +1099,7 @@ function ShowWorkspaceContent() {
             >
               {show.tracks.map((track) => (
                 <option key={track.id} value={track.id}>
-                  {track.name}
+                  {track.name} ({track.type})
                 </option>
               ))}
             </select>
