@@ -38,7 +38,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, Upload } from "lucide-react";
+import { GripVertical, Trash2, Upload, ArrowLeft } from "lucide-react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/api/root";
 import type { ShowEvent } from "@/shared/types/domain";
@@ -772,7 +772,7 @@ function ShowWorkspaceContent() {
   function submitNewCue() {
     const comment = store.newCueComment.trim();
 
-    if (!showId || !comment || createCueMutation.isPending) {
+    if (!showId || createCueMutation.isPending) {
       return;
     }
 
@@ -788,7 +788,12 @@ function ShowWorkspaceContent() {
     <>
       <div className="space-y-6 pb-52 pt-[5.5em]">
         <Card className="fixed top-0 left-0 right-0 z-40 bg-card/75">
-          <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <CardHeader className="grid items-center gap-4 grid-cols-[auto_1fr_auto] justify-items-start">
+            <div>
+              <Button variant="ghost" size="default" onClick={() => navigate("/shows")} aria-label="Back to show list">
+                <ArrowLeft size={24} />
+              </Button>
+            </div>
             <div>
               <Menubar>
                 <MenubarMenu>
@@ -925,7 +930,7 @@ function ShowWorkspaceContent() {
           </DndContext>
 
           {cueRows.length === 0 && (
-            <div className="flex flex-col items-center justify-center gap-2 border border-border/70 bg-background/40 p-6 text-sm text-muted-foreground">
+            <div className="flex items-center justify-center h-full text-muted-foreground pt-40">
               <div>Create new cues using the <span className="text-foreground">Cue 🠊 Add cue</span> menu or using the <kbd className="text-foreground">Ctrl+Alt+Space</kbd> hotkey.</div>
             </div>
           )}
@@ -987,7 +992,7 @@ function ShowWorkspaceContent() {
               }}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={!snapshot.newCueComment.trim() || createCueMutation.isPending}>
+              <Button type="submit" disabled={createCueMutation.isPending}>
                 Add cue
               </Button>
             </div>
@@ -1066,6 +1071,7 @@ function ShowWorkspaceContent() {
         show={show}
         serverUrl={SERVER_URL}
         selectedMediaFileId={snapshot.selectedMediaFileId}
+        pauseRequested={snapshot.activeModal === "addCue"}
         onCurrentTimeChange={(ms) => (store.currentTimeMs = ms)}
       />}
       <SheetDialog

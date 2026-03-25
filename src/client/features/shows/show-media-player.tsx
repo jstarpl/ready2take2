@@ -59,10 +59,11 @@ interface ShowMediaPlayerProps {
   show: ShowDetail;
   serverUrl: string;
   selectedMediaFileId: string | null;
+  pauseRequested?: boolean;
   onCurrentTimeChange?: (currentTimeMs: number) => void;
 }
 
-export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, onCurrentTimeChange }: ShowMediaPlayerProps) {
+export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, pauseRequested = false, onCurrentTimeChange }: ShowMediaPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [durationMs, setDurationMs] = useState(0);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
@@ -113,6 +114,16 @@ export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, onCurren
   useEffect(() => {
     setPlaybackError(null);
   }, [mediaSrc]);
+
+  useEffect(() => {
+    if (!pauseRequested) {
+      return;
+    }
+
+    audioRef.current?.pause();
+    videoRef.current?.pause();
+    setIsPlaying(false);
+  }, [pauseRequested]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
