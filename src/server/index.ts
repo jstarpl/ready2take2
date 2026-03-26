@@ -14,6 +14,7 @@ import { SESSION_COOKIE_NAME } from "./auth/constants";
 import { getSessionUser } from "./services/auth-service";
 import { createShowMediaFile, deleteShowMediaFile, ensureUploadDirectories, uploadsTempDirectory, uploadsRootDirectory } from "./services/show-media-service";
 import { seedInitialData } from "./services/seed-service";
+import { shutdownVideoMixerConnections } from "./services/video-mixer-service";
 
 const PORT = process.env.PORT || 3000;
 
@@ -125,6 +126,38 @@ async function bootstrap() {
       );
       return createContext({ req: request, res: response });
     },
+  });
+
+  let shutdownStarted = false;
+  const shutdown = async (signal: string) => {
+    if (shutdownStarted) {
+      return;
+    }
+
+    shutdownStarted = true;
+    console.log(`Shutting down Ready2Take2 server (${signal})`);
+
+    await shutdownVideoMixerConnections().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error(`[video-mixer] Failed during shutdown cleanup: ${message}`);
+    });
+
+    wss.close();
+    server.close(() => {
+      process.exit(0);
+    });
+
+    setTimeout(() => {
+      process.exit(1);
+    }, 5000).unref();
+  };
+
+  process.once("SIGINT", () => {
+    void shutdown("SIGINT");
+  });
+
+  process.once("SIGTERM", () => {
+    void shutdown("SIGTERM");
   });
 }
 

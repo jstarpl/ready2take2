@@ -4,3 +4,4 @@ export * from "./project";
 export * from "./show";
 export * from "./track";
 export * from "./cue";
+export * from "./video-mixer-setting";

@@ -4,6 +4,7 @@ import { Project } from "../db/entities/Project";
 import { Show } from "../db/entities/Show";
 import { Track } from "../db/entities/Track";
 import { showEvents } from "../realtime/show-events";
+import { triggerNextCueVideoMixerAutomation } from "./video-mixer-service";
 
 export async function createShowWithDefaultTrack(projectId: string, name: string) {
   return appDataSource.transaction(async (manager) => {
@@ -57,6 +58,10 @@ export async function assignShowCuePointer(showId: string, cueId: string | null,
     entityId: cueId ?? show.id,
   });
 
+  if (field === "nextCueId") {
+    triggerNextCueVideoMixerAutomation(show.id);
+  }
+
   return show;
 }
 
@@ -108,6 +113,8 @@ export async function takeShow(showId: string) {
       showId: savedShow.id,
       entityId: followingCueId ?? savedShow.id,
     });
+
+    triggerNextCueVideoMixerAutomation(savedShow.id);
 
     return savedShow;
   });
