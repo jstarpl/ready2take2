@@ -11,6 +11,7 @@ import { VideoMixerSetting, type VideoMixerMode } from "../db/entities/VideoMixe
 const GLOBAL_VIDEO_MIXER_SETTINGS_KEY = "global";
 const DEFAULT_VMIX_PORT = 8099;
 const DEFAULT_ATEM_PORT = 9910;
+const DEFAULT_ATEM_ME = 0;
 const VMIX_CONNECT_TIMEOUT_MS = 5000;
 const ATEM_CONNECT_TIMEOUT_MS = 5000;
 const MIXER_TEST_DELAY = 1000;
@@ -38,6 +39,7 @@ export type VideoMixerSettingsSnapshot = {
   vmixPort: number;
   atemHost: string;
   atemPort: number;
+  atemMe: number;
 };
 
 export type VideoMixerPreviewTestResult = {
@@ -65,6 +67,7 @@ export function getDefaultVideoMixerSettings(): VideoMixerSettingsSnapshot {
     vmixPort: DEFAULT_VMIX_PORT,
     atemHost: "",
     atemPort: DEFAULT_ATEM_PORT,
+    atemMe: DEFAULT_ATEM_ME,
   };
 }
 
@@ -82,6 +85,7 @@ export async function getVideoMixerSettings(): Promise<VideoMixerSettingsSnapsho
     vmixPort: existing.vmixPort ?? DEFAULT_VMIX_PORT,
     atemHost: existing.atemHost ?? "",
     atemPort: existing.atemPort ?? DEFAULT_ATEM_PORT,
+    atemMe: existing.atemMe ?? DEFAULT_ATEM_ME,
   };
 }
 
@@ -95,6 +99,7 @@ export async function updateVideoMixerSettings(settings: VideoMixerSettingsSnaps
         vmixPort: existing.vmixPort ?? DEFAULT_VMIX_PORT,
         atemHost: existing.atemHost ?? "",
         atemPort: existing.atemPort ?? DEFAULT_ATEM_PORT,
+        atemMe: existing.atemMe ?? DEFAULT_ATEM_ME,
       }
     : getDefaultVideoMixerSettings();
 
@@ -104,6 +109,7 @@ export async function updateVideoMixerSettings(settings: VideoMixerSettingsSnaps
   entity.vmixPort = settings.vmixPort;
   entity.atemHost = settings.atemHost;
   entity.atemPort = settings.atemPort;
+  entity.atemMe = settings.atemMe;
 
   await repository.save(entity);
 
@@ -143,14 +149,14 @@ export async function testVideoMixerPreview(): Promise<VideoMixerPreviewTestResu
   }
 
   const atem = await getPersistentAtemConnection(settings);
-  await atem.changePreviewInput(1);
-  logger.info`Sent test preview to ATEM using input 1.`;
+  await atem.changePreviewInput(1, settings.atemMe);
+  logger.info`Sent test preview to ATEM using input 1 on M/E ${settings.atemMe + 1}.`;
   await sleep(MIXER_TEST_DELAY);
-  await atem.changePreviewInput(2);
-  logger.info`Sent test preview to ATEM using input 2.`;
+  await atem.changePreviewInput(2, settings.atemMe);
+  logger.info`Sent test preview to ATEM using input 2 on M/E ${settings.atemMe + 1}.`;
   await sleep(MIXER_TEST_DELAY);
-  await atem.changePreviewInput(1);
-  logger.info`Sent test preview to ATEM using input 1.`;
+  await atem.changePreviewInput(1, settings.atemMe);
+  logger.info`Sent test preview to ATEM using input 1 on M/E ${settings.atemMe + 1}.`;
 
   return {
     mode: "atem",
@@ -353,8 +359,8 @@ async function sendPreviewToAtem(
   }
 
   const atem = await getPersistentAtemConnection(settings);
-  await atem.changePreviewInput(inputNumber);
-  logger.info`ATEM preview updated to input ${inputNumber} for show ${resolvedIdentifier.showId}.`;
+  await atem.changePreviewInput(inputNumber, settings.atemMe);
+  logger.info`ATEM preview updated to input ${inputNumber} on M/E ${settings.atemMe} for show ${resolvedIdentifier.showId}.`;
 }
 
 async function reconfigurePersistentVideoMixerConnections(

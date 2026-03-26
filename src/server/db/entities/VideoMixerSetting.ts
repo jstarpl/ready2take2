@@ -10,6 +10,7 @@ export class VideoMixerSetting extends BaseRecord {
   vmixPort!: number | null;
   atemHost!: string | null;
   atemPort!: number | null;
+  atemMe!: number | null;
 }
 
 export const VideoMixerSettingSchema = new EntitySchema<VideoMixerSetting>({
@@ -26,5 +27,6 @@ export const VideoMixerSettingSchema = new EntitySchema<VideoMixerSetting>({
     vmixPort: { type: Number, nullable: true },
     atemHost: { type: String, nullable: true },
     atemPort: { type: Number, nullable: true },
+    atemMe: { type: Number, nullable: true },
   },
 });

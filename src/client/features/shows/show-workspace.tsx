@@ -665,6 +665,7 @@ function ShowWorkspaceContent() {
     if (show?.nextCueId) {
       takeShowMutation.mutate({ showId });
     } else {
+      store.selectedCueId = null;
       setNextCueMutation.mutate({ showId, cueId: targetCueId });
     }
   }

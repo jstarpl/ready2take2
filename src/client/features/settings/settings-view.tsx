@@ -36,6 +36,7 @@ export function SettingsView() {
       setVmixPort(String(settings.vmixPort));
       setAtemHost(settings.atemHost);
       setAtemPort(String(settings.atemPort));
+      setAtemMe(String(settings.atemMe + 1));
       await Promise.all([utils.videoMixerSetting.get.invalidate(), utils.videoMixerSetting.getStatus.invalidate()]);
     },
   });
@@ -70,6 +71,7 @@ export function SettingsView() {
   const [vmixPort, setVmixPort] = useState("8099");
   const [atemHost, setAtemHost] = useState("");
   const [atemPort, setAtemPort] = useState("9910");
+  const [atemMe, setAtemMe] = useState("0");
   const [videoMixerTestStatus, setVideoMixerTestStatus] = useState<string | null>(null);
   const [videoMixerTestError, setVideoMixerTestError] = useState<string | null>(null);
 
@@ -87,6 +89,7 @@ export function SettingsView() {
     setVmixPort(String(settings.vmixPort));
     setAtemHost(settings.atemHost);
     setAtemPort(String(settings.atemPort));
+    setAtemMe(String(settings.atemMe + 1));
   }, [videoMixerSettingsQuery.data]);
 
   function handleAddSubmit(event: React.FormEvent) {
@@ -111,8 +114,13 @@ export function SettingsView() {
 
     const parsedVmixPort = Number.parseInt(vmixPort, 10);
     const parsedAtemPort = Number.parseInt(atemPort, 10);
+    const parsedAtemMe = Number.parseInt(atemMe, 10) - 1;
 
-    if (Number.isNaN(parsedVmixPort) || Number.isNaN(parsedAtemPort) || updateVideoMixerSettingsMutation.isPending) {
+    if (
+      Number.isNaN(parsedVmixPort) ||
+      Number.isNaN(parsedAtemPort) ||
+      updateVideoMixerSettingsMutation.isPending
+    ) {
       return;
     }
 
@@ -122,6 +130,7 @@ export function SettingsView() {
       vmixPort: parsedVmixPort,
       atemHost,
       atemPort: parsedAtemPort,
+      atemMe: parsedAtemMe || null,
     });
   }
 
@@ -268,6 +277,10 @@ export function SettingsView() {
               <div className="space-y-1">
                 <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ATEM port</label>
                 <Input value={atemPort} onChange={(event) => setAtemPort(event.target.value)} placeholder="eg. 9910" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ATEM M/E</label>
+                <Input value={atemMe} onChange={(event) => setAtemMe(event.target.value)} placeholder="eg. 1" />
               </div>
             </div>
 

@@ -1,5 +1,21 @@
 # Ready2Take2
 
+```
+██████╗ ███████╗ █████╗ ██████╗ ██╗   ██╗██████╗ 
+██╔══██╗██╔════╝██╔══██╗██╔══██╗╚██╗ ██╔╝╚════██╗
+██████╔╝█████╗  ███████║██║  ██║ ╚████╔╝  █████╔╝
+██╔══██╗██╔══╝  ██╔══██║██║  ██║  ╚██╔╝  ██╔═══╝ 
+██║  ██║███████╗██║  ██║██████╔╝   ██║   ███████╗
+╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═════╝    ╚═╝   ╚══════╝
+                                                 
+████████╗ █████╗ ██╗  ██╗███████╗██████╗         
+╚══██╔══╝██╔══██╗██║ ██╔╝██╔════╝╚════██╗        
+   ██║   ███████║█████╔╝ █████╗   █████╔╝        
+   ██║   ██╔══██║██╔═██╗ ██╔══╝  ██╔═══╝         
+   ██║   ██║  ██║██║  ██╗███████╗███████╗        
+   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝        
+```
+
 A web application simplifying coordination between the director and camera operators. Inspired by available commercial solutions, Ready2Take2 tries to help the team produce a tightly timed, planned show without taking away control. The director can plan shots and cues based on an earlier recording, then they can step through the cues while all camera operators can follow along the progression of the show on mobile devices and screens. Countdowns provide information on length of the shot.
 
 Progression through the cues is manual triggered by the director or by reacting to transitions happening in the switcher.
