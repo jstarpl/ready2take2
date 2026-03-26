@@ -1017,6 +1017,22 @@ function ShowWorkspaceContent() {
                       <MenubarShortcut>Ctrl+M</MenubarShortcut>
                     </MenubarItem>
                     <MenubarSeparator />
+                    <MenubarCheckboxItem
+                      checked={snapshot.liveCueRecordingMode}
+                      onCheckedChange={() => {
+                        if (snapshot.liveCueRecordingMode) {
+                          store.liveCueRecordingMode = false;
+                          store.liveCueRecordingTrackId = null;
+                          store.lastLiveCueIdentifier = null;
+                        } else {
+                          setLiveRecordingDialogTrackId(show.tracks[0]?.id ?? "");
+                          store.activeModal = "selectLiveCueTrack";
+                        }
+                      }}
+                      disabled={!show.tracks.length}
+                    >
+                      Live Cue Recording
+                    </MenubarCheckboxItem>
                     <MenubarItem
                       disabled={!show || resetCueIdsMutation.isPending}
                       onSelect={() => showId && resetCueIdsMutation.mutate({ showId })}
@@ -1036,22 +1052,6 @@ function ShowWorkspaceContent() {
                       Open Cue List View
                     </MenubarItem>
                     <MenubarSeparator />
-                    <MenubarCheckboxItem
-                      checked={snapshot.liveCueRecordingMode}
-                      onCheckedChange={() => {
-                        if (snapshot.liveCueRecordingMode) {
-                          store.liveCueRecordingMode = false;
-                          store.liveCueRecordingTrackId = null;
-                          store.lastLiveCueIdentifier = null;
-                        } else {
-                          setLiveRecordingDialogTrackId(show.tracks[0]?.id ?? "");
-                          store.activeModal = "selectLiveCueTrack";
-                        }
-                      }}
-                      disabled={!show.tracks.length}
-                    >
-                      Live Cue Recording
-                    </MenubarCheckboxItem>
                   </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>
