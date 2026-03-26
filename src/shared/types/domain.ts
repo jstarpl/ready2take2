@@ -10,6 +10,7 @@ export type ShowEventType =
   | "cue.updated"
   | "cue.deleted"
   | "cue.reordered"
+  | "cue.imported"
   | "cueTrackValue.updated"
   | "show.currentCueChanged"
   | "show.nextCueChanged";

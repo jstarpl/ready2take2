@@ -448,9 +448,12 @@ function ShowWorkspaceContent() {
   const [orderedCueIds, setOrderedCueIds] = useState<string[]>([]);
   const [deletingMediaFileId, setDeletingMediaFileId] = useState<string | null>(null);
   const [liveRecordingDialogTrackId, setLiveRecordingDialogTrackId] = useState<string>("");
+  const [selectedCueImportFile, setSelectedCueImportFile] = useState<File | null>(null);
+  const [cueImportError, setCueImportError] = useState<string | null>(null);
   const isDraggingRef = useRef(false);
   const cueRefMapRef = useRef<Map<string, HTMLElement>>(new Map());
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const cueImportInputRef = useRef<HTMLInputElement | null>(null);
   const pendingLiveCueRef = useRef<{ identifier: string; trackId: string } | null>(null);
   const pendingScrollCueIdRef = useRef<string | null>(null);
   const selectedUploadPreviewUrl = useMemo(() => {
@@ -510,6 +513,22 @@ function ShowWorkspaceContent() {
       if (showId) {
         await utils.show.getDetail.invalidate({ showId });
       }
+    },
+  });
+  const importCueCsvMutation = trpc.cue.importCsv.useMutation({
+    onSuccess: async () => {
+      setCueImportError(null);
+      setSelectedCueImportFile(null);
+      if (cueImportInputRef.current) {
+        cueImportInputRef.current.value = "";
+      }
+      store.activeModal = null;
+      if (showId) {
+        await utils.show.getDetail.invalidate({ showId });
+      }
+    },
+    onError: (error) => {
+      setCueImportError(error.message);
     },
   });
 
@@ -995,6 +1014,30 @@ function ShowWorkspaceContent() {
     }
   }
 
+  function closeCueImportModal() {
+    setCueImportError(null);
+    setSelectedCueImportFile(null);
+    if (cueImportInputRef.current) {
+      cueImportInputRef.current.value = "";
+    }
+    store.activeModal = null;
+  }
+
+  async function submitCueImport() {
+    if (!showId || !selectedCueImportFile || importCueCsvMutation.isPending) {
+      return;
+    }
+
+    setCueImportError(null);
+
+    try {
+      const csvContent = await selectedCueImportFile.text();
+      await importCueCsvMutation.mutateAsync({ showId, csvContent });
+    } catch (error) {
+      setCueImportError(error instanceof Error ? error.message : "Cue import failed.");
+    }
+  }
+
   function handleFileSelection(file: File | null) {
     store.uploadError = null;
     store.selectedUpload = file === null ? null : ref(file);
@@ -1033,6 +1076,12 @@ function ShowWorkspaceContent() {
                     <MenubarItem onSelect={() => (store.activeModal = "addCue")}>
                       Add cue
                       <MenubarShortcut>Ctrl+Alt+Space</MenubarShortcut>
+                    </MenubarItem>
+                    <MenubarItem onSelect={() => {
+                      setCueImportError(null);
+                      store.activeModal = "importCues";
+                    }}>
+                      Import cues from CSV
                     </MenubarItem>
                     <MenubarItem disabled={!canMoveCueToNow} onSelect={handleMoveCueToNow}>
                       Move cue to now
@@ -1269,6 +1318,48 @@ function ShowWorkspaceContent() {
         </ModalDialog>
 
         <ModalDialog
+          open={snapshot.activeModal === "importCues"}
+          title="Import cues from CSV"
+          description="Imports rows with Marker Name and In. If Marker Name contains semicolons, values after the first semicolon are assigned across tracks in track order as technical identifiers."
+          onClose={closeCueImportModal}
+        >
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitCueImport();
+            }}
+          >
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <div>Required CSV columns: Marker Name, Description, In, Out, Duration, Marker Type.</div>
+              <div>Marker Name becomes the cue comment. In becomes the cue offset.</div>
+            </div>
+            <input
+              ref={cueImportInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="flex h-10 w-full border border-input bg-background px-3 py-2 text-sm"
+              onChange={(event) => {
+                setCueImportError(null);
+                setSelectedCueImportFile(event.target.files?.[0] ?? null);
+              }}
+            />
+            {selectedCueImportFile ? (
+              <div className="text-sm text-muted-foreground">Selected file: {selectedCueImportFile.name}</div>
+            ) : null}
+            {cueImportError ? <div className="text-sm text-destructive">{cueImportError}</div> : null}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={closeCueImportModal}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!selectedCueImportFile || importCueCsvMutation.isPending}>
+                {importCueCsvMutation.isPending ? "Importing..." : "Import cues"}
+              </Button>
+            </div>
+          </form>
+        </ModalDialog>
+
+        <ModalDialog
           open={snapshot.activeModal === "addTrack"}
           title="Add track"
           description="Backfills a technical identifier slot for every existing cue."
@@ -1416,7 +1507,7 @@ function ShowWorkspaceContent() {
         show={show}
         serverUrl={SERVER_URL}
         selectedMediaFileId={snapshot.selectedMediaFileId}
-        pauseRequested={snapshot.activeModal === "addCue"}
+        pauseRequested={snapshot.activeModal === "addCue" || snapshot.activeModal === "importCues"}
         currentTimeRequestedMs={currentTimeRequest}
         onCurrentTimeChange={(ms) => (store.currentTimeMs = ms)}
         topSlot={snapshot.liveCueRecordingMode ? (() => {

@@ -7,6 +7,11 @@ export const cueCreateSchema = z.object({
   cueOffsetMs: z.number().int().min(0).nullable(),
 });
 
+export const cueImportCsvSchema = z.object({
+  showId: z.string(),
+  csvContent: z.string().min(1).max(2_000_000),
+});
+
 export const cueUpdateSchema = z.object({
   id: z.string(),
   comment: z.string().trim().max(1000),
