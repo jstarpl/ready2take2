@@ -1,12 +1,13 @@
-import { setTimeout as sleep } from "node:timers/promises";
-import { Atem, AtemConnectionStatus } from "atem-connection";
+import { Atem, AtemConnectionStatus, type AtemState } from "atem-connection";
 import { ConnectionTCP } from "node-vmix";
+import { setTimeout as sleep } from "node:timers/promises";
 import { appDataSource } from "../db/data-source";
-import { getLogger } from "../lib/logger";
-
-const logger = getLogger('video-mixer');
 import { Show } from "../db/entities/Show";
 import { VideoMixerSetting, type VideoMixerMode } from "../db/entities/VideoMixerSetting";
+import { getLogger } from "../lib/logger";
+import { takeShow } from "./show-service";
+
+const logger = getLogger('video-mixer');
 
 const GLOBAL_VIDEO_MIXER_SETTINGS_KEY = "global";
 const DEFAULT_VMIX_PORT = 8099;
@@ -21,6 +22,8 @@ type PersistentVmixConnection = {
   port: number;
   connection: ConnectionTCP;
   connectPromise: Promise<ConnectionTCP> | null;
+  lastObservedProgramPreviewInputs: { programInput: number; previewInput: number } | null;
+  onTally: ((tally: string, ...args: unknown[]) => void) | null;
 };
 
 type PersistentAtemConnection = {
@@ -28,6 +31,8 @@ type PersistentAtemConnection = {
   port: number;
   client: Atem;
   connectPromise: Promise<Atem> | null;
+  lastObservedMixEffectInputs: Map<number, { programInput: number; previewInput: number }>;
+  onStateChanged: ((state: AtemState) => void) | null;
 };
 
 let persistentVmixConnection: PersistentVmixConnection | null = null;
@@ -316,6 +321,14 @@ async function resolveNextCueTechnicalIdentifier(showId: string): Promise<Resolv
     return null;
   }
 
+  return resolveNextCueTechnicalIdentifierFromShow(show);
+}
+
+function resolveNextCueTechnicalIdentifierFromShow(show: Show): ResolvedNextCueTechnicalIdentifier | null {
+  if (!show.nextCueId) {
+    return null;
+  }
+
   const nextCue = show.cues.find((cue) => cue.id === show.nextCueId);
   if (!nextCue) {
     return null;
@@ -332,11 +345,175 @@ async function resolveNextCueTechnicalIdentifier(showId: string): Promise<Resolv
   }
 
   return {
-    showId,
+    showId: show.id,
     cueId: nextCue.id,
     trackId: firstCameraTrack.id,
     technicalIdentifier,
   };
+}
+
+async function resolveShowForProgramInput(inputNumber: number): Promise<ResolvedNextCueTechnicalIdentifier | null> {
+  const shows = await appDataSource.getRepository(Show).find({
+    relations: {
+      tracks: true,
+      cues: { cueTrackValues: true },
+    },
+    order: {
+      tracks: { position: "ASC" },
+      cues: { orderKey: "ASC" },
+    },
+  });
+
+  const matchingCandidates = shows
+    .map((show) => ({
+      show,
+      resolvedIdentifier: resolveNextCueTechnicalIdentifierFromShow(show),
+    }))
+    .filter((candidate): candidate is { show: Show; resolvedIdentifier: ResolvedNextCueTechnicalIdentifier } =>
+      candidate.resolvedIdentifier !== null,
+    )
+    .filter(({ resolvedIdentifier }) => {
+      const technicalIdentifier = Number.parseInt(resolvedIdentifier.technicalIdentifier, 10);
+      return !Number.isNaN(technicalIdentifier) && technicalIdentifier === inputNumber;
+    });
+
+  if (matchingCandidates.length === 0) {
+    return null;
+  }
+
+  if (matchingCandidates.length > 1) {
+    logger.warn`Multiple shows matched ATEM program input ${inputNumber}. Prioritizing a live show candidate.`;
+  }
+
+  const liveCandidate = matchingCandidates.find(({ show }) => show.status === "live");
+  return (liveCandidate ?? matchingCandidates[0]).resolvedIdentifier;
+}
+
+async function executeShowTakeForProgramInput(inputNumber: number) {
+  const matchingShow = await resolveShowForProgramInput(inputNumber);
+  if (!matchingShow) {
+    return;
+  }
+
+  await takeShow(matchingShow.showId);
+  logger.info`Executed show take for show ${matchingShow.showId} after mixer program switched to input ${inputNumber}.`;
+}
+
+async function attachPersistentVmixTallyListener(connection: PersistentVmixConnection) {
+  connection.onTally = (tally: string) => {
+    logger.debug`Received vMix tally event with tally string: ${tally}`;
+    void handlePersistentVmixTallyChanged(connection, tally).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      logger.error`Failed while processing vMix tally event: ${message}`;
+    });
+  };
+
+  connection.connection.send("SUBSCRIBE TALLY");
+  connection.connection.on("tally", connection.onTally);
+}
+
+async function handlePersistentVmixTallyChanged(connection: PersistentVmixConnection, tally: string) {
+  if (persistentVmixConnection !== connection) {
+    return;
+  }
+
+  const settings = await getVideoMixerSettings();
+  if (!shouldUseVmix(settings)) {
+    return;
+  }
+
+  if (settings.vmixHost !== connection.host || settings.vmixPort !== connection.port) {
+    return;
+  }
+
+  const currentInputs = resolveProgramPreviewInputsFromVmixTally(tally);
+  if (currentInputs === null) {
+    return;
+  }
+
+  const previousInputs = connection.lastObservedProgramPreviewInputs;
+  connection.lastObservedProgramPreviewInputs = currentInputs;
+
+  if (!previousInputs || !currentInputs) {
+    return;
+  }
+
+  const hasSwapped =
+    previousInputs.programInput === currentInputs.previewInput &&
+    previousInputs.previewInput === currentInputs.programInput;
+
+  if (!hasSwapped) {
+    return;
+  }
+
+  await executeShowTakeForProgramInput(currentInputs.programInput);
+}
+
+function resolveProgramPreviewInputsFromVmixTally(tally: string): { programInput: number; previewInput: number } | null {
+  const programIndex = tally.indexOf("1");
+  const previewIndex = tally.indexOf("2");
+
+  if (programIndex < 0 || previewIndex < 0) {
+    return null;
+  }
+
+  return {
+    programInput: programIndex + 1,
+    previewInput: previewIndex + 1,
+  };
+}
+
+function attachPersistentAtemStateChangedListener(connection: PersistentAtemConnection) {
+  connection.onStateChanged = (state: AtemState) => {
+    void handlePersistentAtemStateChanged(connection, state).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      logger.error`Failed while processing ATEM stateChanged event: ${message}`;
+    });
+  };
+
+  connection.client.on("stateChanged", connection.onStateChanged);
+}
+
+async function handlePersistentAtemStateChanged(connection: PersistentAtemConnection, state: AtemState) {
+  if (persistentAtemConnection !== connection) {
+    return;
+  }
+
+  const settings = await getVideoMixerSettings();
+  if (!shouldUseAtem(settings)) {
+    return;
+  }
+
+  if (settings.atemHost !== connection.host || settings.atemPort !== connection.port) {
+    return;
+  }
+
+  const configuredMixEffect = state.video.mixEffects[settings.atemMe];
+  if (!configuredMixEffect) {
+    return;
+  }
+
+  const currentInputs = {
+    programInput: configuredMixEffect.programInput,
+    previewInput: configuredMixEffect.previewInput,
+  };
+
+  const previousInputs = connection.lastObservedMixEffectInputs.get(settings.atemMe);
+  connection.lastObservedMixEffectInputs.set(settings.atemMe, currentInputs);
+
+  if (!previousInputs) {
+    return;
+  }
+
+  const hasSwapped =
+    previousInputs.programInput === currentInputs.previewInput &&
+    previousInputs.previewInput === currentInputs.programInput;
+
+  if (!hasSwapped) {
+    return;
+  }
+
+  await executeShowTakeForProgramInput(currentInputs.programInput);
 }
 
 async function sendPreviewToVmix(
@@ -414,6 +591,8 @@ async function getPersistentVmixConnection(settings: VideoMixerSettingsSnapshot)
       port: settings.vmixPort,
       connection,
       connectPromise: null,
+      lastObservedProgramPreviewInputs: null,
+      onTally: null,
     };
   }
 
@@ -435,6 +614,10 @@ async function getPersistentVmixConnection(settings: VideoMixerSettingsSnapshot)
         }
       });
 
+    currentConnection.connectPromise.then(async () => {
+      await attachPersistentVmixTallyListener(currentConnection);
+    })
+
     return currentConnection.connectPromise;
   }
 
@@ -454,12 +637,17 @@ async function getPersistentAtemConnection(settings: VideoMixerSettingsSnapshot)
   }
 
   if (!persistentAtemConnection) {
-    persistentAtemConnection = {
+    const connection: PersistentAtemConnection = {
       host: settings.atemHost,
       port: settings.atemPort,
       client: new Atem(),
       connectPromise: null,
+      lastObservedMixEffectInputs: new Map(),
+      onStateChanged: null,
     };
+
+    attachPersistentAtemStateChangedListener(connection);
+    persistentAtemConnection = connection;
   }
 
   if (persistentAtemConnection.client.status === AtemConnectionStatus.CONNECTED) {
@@ -491,6 +679,12 @@ function disposePersistentVmixConnection() {
     return;
   }
 
+  if (persistentVmixConnection.onTally) {
+    persistentVmixConnection.connection.off("tally", persistentVmixConnection.onTally);
+    persistentVmixConnection.onTally = null;
+  }
+  persistentVmixConnection.lastObservedProgramPreviewInputs = null;
+
   persistentVmixConnection.connection.shutdown();
   persistentVmixConnection = null;
 }
@@ -502,6 +696,12 @@ async function disposePersistentAtemConnection() {
 
   const connection = persistentAtemConnection;
   persistentAtemConnection = null;
+
+  if (connection.onStateChanged) {
+    connection.client.off("stateChanged", connection.onStateChanged);
+    connection.onStateChanged = null;
+  }
+  connection.lastObservedMixEffectInputs.clear();
 
   await connection.client.disconnect().catch(() => undefined);
   await connection.client.destroy().catch(() => undefined);
