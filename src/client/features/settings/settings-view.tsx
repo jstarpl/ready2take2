@@ -244,7 +244,7 @@ export function SettingsView() {
               <select
                 value={videoMixerMode}
                 onChange={(event) => setVideoMixerMode(event.target.value as VideoMixerMode)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                className="flex h-10 w-full border border-input bg-background px-3 py-2 text-sm ring-offset-background"
               >
                 <option value="none">None</option>
                 <option value="vmix">vMix</option>
@@ -308,12 +308,12 @@ export function SettingsView() {
           <form className="mt-6 space-y-3 border-t border-border/60 pt-4" onSubmit={handleVideoMixerTest}>
             <div className="space-y-1">
               <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Test technical identifier
+                Test mixer connection
               </label>
             </div>
 
             <div className="text-sm text-muted-foreground">
-              This sends a live preview command sequence to test the connection.
+              This changes the preview on the video mixer in a sequence to test the connection.
             </div>
 
             {videoMixerTestStatus ? (
@@ -333,7 +333,7 @@ export function SettingsView() {
               variant="outline"
               disabled={testVideoMixerPreviewMutation.isPending || videoMixerMode === "none"}
             >
-              Test preview
+              Test
             </Button>
           </form>
         </CardContent>

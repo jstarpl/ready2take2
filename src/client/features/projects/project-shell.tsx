@@ -5,6 +5,7 @@ import { Button } from "@/client/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/client/components/ui/card";
 import { Input } from "@/client/components/ui/input";
 import { Badge } from "@/client/components/ui/badge";
+import { LogOutIcon, SettingsIcon } from "lucide-react";
 
 export function ProjectShell() {
   const navigate = useNavigate();
@@ -41,14 +42,13 @@ export function ProjectShell() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Projects</CardTitle>
-                <CardDescription>Manage productions and jump into live shows.</CardDescription>
               </div>
               <div className="flex gap-2">
-                <Link to="/settings" className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
-                  Settings
+                <Link to="/settings" className="inline-flex items-center justify-center border border-input bg-background px-3 py-1.5 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground" title="Settings">
+                  <SettingsIcon />
                 </Link>
-                <Button variant="outline" size="sm" onClick={() => logoutMutation.mutate()}>
-                  Logout
+                <Button variant="outline" size="sm" onClick={() => logoutMutation.mutate()} title="Logout">
+                  <LogOutIcon />
                 </Button>
               </div>
             </div>

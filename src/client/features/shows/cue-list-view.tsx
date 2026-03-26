@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { useSnapshot } from "valtio";
 import { trpc } from "@/client/lib/trpc";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/client/components/ui/card";
-import { cn } from "@/client/lib/utils";
+import { cn, getContrastColor } from "@/client/lib/utils";
 import {
     CueListViewStoreContext,
     getOrCreateCueListViewStore,
@@ -15,14 +15,6 @@ import { Show } from "@/server/db/entities/Show";
 
 function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
-}
-
-function getContrastColor(hexColor: string): string {
-    const r = parseInt(hexColor.slice(1, 3), 16);
-    const g = parseInt(hexColor.slice(3, 5), 16);
-    const b = parseInt(hexColor.slice(5, 7), 16);
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.5 ? "#000000" : "#ffffff";
 }
 
 interface CueListItemProps {
@@ -259,10 +251,10 @@ function CueListViewContent() {
 
     // Build top pane cues: current + next + up to 23 following
     // If current exists, start from current; otherwise start from next
-    let topPaneCues = [];
+    let topPaneCues = [] as Cue[];
     if (nextCueIndex !== -1) {
         topPaneCues = orderedCues.slice(nextCueIndex, nextCueIndex + 75);
-    } else {
+    } else if (currentCueIndex === -1) {
         topPaneCues = orderedCues.slice(0, 75).filter((cue) => cue.id !== safeShow.currentCueId);
     }
 

@@ -18,7 +18,7 @@ import {
 } from "@/client/components/ui/menubar";
 import { Textarea } from "@/client/components/ui/textarea";
 import { ShowMediaPlayer } from "@/client/features/shows/show-media-player";
-import { formatOffset } from "@/client/lib/utils";
+import { formatOffset, getContrastColor, getContrastShadow } from "@/client/lib/utils";
 import { useShowWorkspaceStore, resetAddCueForm, resetAddTrackForm, getOrCreateStore, ShowWorkspaceStoreContext } from "@/client/features/shows/show-workspace-store";
 import {
   DndContext,
@@ -240,7 +240,7 @@ function LiveCueRecordingBar({ trackName, cameraColorSettings, lastIdentifier, o
                 key={setting.identifier}
                 onClick={() => onIdentifierSelect(setting.identifier)}
                 className="relative flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-opacity hover:opacity-90 active:opacity-75"
-                style={{ backgroundColor: setting.color, color: "white", textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}
+                style={{ backgroundColor: setting.color, color: getContrastColor(setting.color), textShadow: `0 1px 3px ${getContrastShadow(setting.color)}` }}
                 title={`Key ${keyLabel}: record "${setting.identifier}"`}
               >
                 {setting.identifier !== keyLabel && <span className="text-[10px] opacity-70 font-mono">{keyLabel}</span>}
@@ -657,6 +657,8 @@ function ShowWorkspaceContent() {
       return;
     }
 
+    const nextCueIndex = orderedCueIds.indexOf(show.nextCueId);
+    pendingScrollCueIdRef.current = nextCueIndex >= 0 ? orderedCueIds[nextCueIndex + 1] ?? null : null;
     takeShowMutation.mutate({ showId });
   }
 
