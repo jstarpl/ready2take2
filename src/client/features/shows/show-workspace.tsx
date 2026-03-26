@@ -38,7 +38,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, Upload, ArrowLeft } from "lucide-react";
+import { GripVertical, Trash2, Upload, ArrowLeft, Video } from "lucide-react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/api/root";
 import type { ShowEvent } from "@/shared/types/domain";
@@ -909,7 +909,7 @@ function ShowWorkspaceContent() {
                 {track.name}
                 {track.type === "camera" && (
                   <span className="rounded bg-blue-500/20 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-400">
-                    cam
+                    <Video size={12} />
                   </span>
                 )}
               </div>

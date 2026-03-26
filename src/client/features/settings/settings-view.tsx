@@ -65,7 +65,7 @@ export function SettingsView() {
               <Input
                 value={newIdentifier}
                 onChange={(e) => setNewIdentifier(e.target.value)}
-                placeholder="e.g. CAM1"
+                placeholder="e.g. 1"
               />
             </div>
             <div className="space-y-1">
