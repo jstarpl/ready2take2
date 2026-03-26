@@ -4,6 +4,7 @@ import { Track } from "../db/entities/Track";
 import { createCueWithTrackValues, updateCueTrackValue } from "./cue-service";
 import { ensureSeedUser } from "./auth-service";
 import { createShowWithDefaultTrack } from "./show-service";
+import { CameraColorSetting } from "../db/entities/CameraColorSetting";
 
 export async function seedInitialData() {
   const user = await ensureSeedUser();
@@ -13,6 +14,12 @@ export async function seedInitialData() {
   if (existingProject) {
     return;
   }
+
+  const cameraColorRepository = appDataSource.getRepository(CameraColorSetting);
+  cameraColorRepository.save(cameraColorRepository.create({ identifier: "1", color: "#ffb700" }));
+  cameraColorRepository.save(cameraColorRepository.create({ identifier: "2", color: "#00ffff" }));
+  cameraColorRepository.save(cameraColorRepository.create({ identifier: "3", color: "#0d00ff" }));
+  cameraColorRepository.save(cameraColorRepository.create({ identifier: "4", color: "#ff0099" }));
 
   const project = await projectRepository.save(
     projectRepository.create({
@@ -29,7 +36,7 @@ export async function seedInitialData() {
 
   const track = await appDataSource.getRepository(Track).findOne({ where: { showId: show.id } });
   if (track) {
-    await updateCueTrackValue(cueA.id, track.id, "CAM-OPEN");
-    await updateCueTrackValue(cueB.id, track.id, "CAM-HOST-INTRO");
+    await updateCueTrackValue(cueA.id, track.id, "1");
+    await updateCueTrackValue(cueB.id, track.id, "2");
   }
 }

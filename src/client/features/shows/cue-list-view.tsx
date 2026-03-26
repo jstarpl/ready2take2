@@ -17,14 +17,23 @@ function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
 }
 
+function getContrastColor(hexColor: string): string {
+    const r = parseInt(hexColor.slice(1, 3), 16);
+    const g = parseInt(hexColor.slice(3, 5), 16);
+    const b = parseInt(hexColor.slice(5, 7), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.5 ? "#000000" : "#ffffff";
+}
+
 interface CueListItemProps {
     cue: Cue;
     show: Show;
     status: "current" | "next" | "following";
     trackValues: Record<string, string | null>;
+    cameraColors: Record<string, string>;
 }
 
-function CueListItem({ cue, show, status, trackValues }: CueListItemProps) {
+function CueListItem({ cue, show, status, trackValues, cameraColors }: CueListItemProps) {
     const statusColors = {
         current: "bg-red-600/30 border-l-8 border-l-red-500",
         next: "bg-green-600/30 border-l-8 border-l-green-500",
@@ -45,14 +54,25 @@ function CueListItem({ cue, show, status, trackValues }: CueListItemProps) {
                     </div>
                 </div>
                 {show.tracks.length > 0 && (
-                    show.tracks.map((track: any) => (
-                        <div key={track.id} className="flex flex-col gap-1 relative self-stretch justify-self-stretch align-center items-center">
-                            <div className="absolute text-muted-foreground text-xs -bottom-3">{track.name}</div>
-                            <div className="text-4xl text-foreground px-2 py-1">
-                                {trackValues[track.id] || "—"}
+                    show.tracks.map((track: any) => {
+                        const value = trackValues[track.id] ?? null;
+                        const isCamera = track.type === "camera";
+                        const bgColor = isCamera && value ? (cameraColors[value] ?? "transparent") : "transparent";
+                        const textColor = isCamera && value && cameraColors[value]
+                            ? getContrastColor(cameraColors[value])
+                            : undefined;
+                        return (
+                            <div key={track.id} className="flex flex-col gap-1 relative self-stretch justify-self-stretch self-stretch align-center items-center " style={{ backgroundColor: bgColor }}>
+                                <div className="absolute text-muted-foreground text-xs -bottom-4">{track.name}</div>
+                                <div
+                                    className="text-4xl px-2 py-1"
+                                    style={{ color: textColor }}
+                                >
+                                    {value || "—"}
+                                </div>
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
                 <div className="text-4xl text-foreground whitespace-wrap break-words">
                     {cue.comment}
@@ -112,6 +132,15 @@ function CueListViewContent() {
         { showId: showId ?? "" },
         { enabled: Boolean(showId) },
     );
+
+    const cameraColorsQuery = trpc.cameraColorSetting.list.useQuery();
+    const cameraColors = useMemo(() => {
+        const map: Record<string, string> = {};
+        for (const entry of cameraColorsQuery.data ?? []) {
+            map[entry.identifier] = entry.color;
+        }
+        return map;
+    }, [cameraColorsQuery.data]);
 
     trpc.show.subscribe.useSubscription(
         { showId: showId ?? "" },
@@ -247,6 +276,7 @@ function CueListViewContent() {
                                     cue={currentCue}
                                     show={safeShow}
                                     status={"current"}
+                                    cameraColors={cameraColors}
                                     trackValues={currentCue.cueTrackValues?.reduce(
                                         (acc: Record<string, string | null>, ctv: any) => {
                                             acc[ctv.trackId] = ctv.technicalIdentifier;
@@ -278,6 +308,7 @@ function CueListViewContent() {
                                         cue={cue}
                                         show={safeShow}
                                         status={status}
+                                        cameraColors={cameraColors}
                                         trackValues={trackValues}
                                     />
                                 );
@@ -379,6 +410,7 @@ function CueListViewContent() {
                                     cue={cue}
                                     show={safeShow}
                                     status={status}
+                                    cameraColors={cameraColors}
                                     trackValues={trackValues}
                                 />
                             );
