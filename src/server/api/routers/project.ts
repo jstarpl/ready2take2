@@ -7,7 +7,7 @@ export const projectRouter = createTRPCRouter({
   list: protectedProcedure.query(async () => {
     return appDataSource.getRepository(Project).find({
       relations: { shows: true },
-      order: { createdAt: "DESC" },
+      order: { createdAt: "DESC", shows: { orderKey: "ASC" } },
     });
   }),
   create: protectedProcedure.input(projectCreateSchema).mutation(async ({ ctx, input }) => {
@@ -25,6 +25,7 @@ export const projectRouter = createTRPCRouter({
     return appDataSource.getRepository(Project).findOne({
       where: { id: input.projectId },
       relations: { shows: true },
+      order: { shows: { orderKey: "ASC" } },
     });
   }),
 });

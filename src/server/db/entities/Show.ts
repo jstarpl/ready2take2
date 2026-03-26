@@ -10,6 +10,7 @@ export class Show extends BaseRecord {
   projectId!: string;
   name!: string;
   status!: "draft" | "live" | "archived";
+  orderKey!: string;
   currentCueId!: string | null;
   currentCueTakenAt!: Date | null;
   currentCue!: Cue | null;
@@ -31,6 +32,7 @@ export const ShowSchema = new EntitySchema<Show>({
     projectId: { type: String },
     name: { type: String },
     status: { type: String, default: "draft" },
+    orderKey: { type: String, default: "0000" },
     currentCueId: { type: String, nullable: true },
     currentCueTakenAt: { type: "datetime", nullable: true },
     nextCueId: { type: String, nullable: true },

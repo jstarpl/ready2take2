@@ -25,6 +25,7 @@
     --popover-foreground: 210 40% 98%;
     --success: 142 76% 36%;
     --warning: 38 92% 50%;
+    --destructive: 0 80% 50%;
 
     color-scheme: dark;
 

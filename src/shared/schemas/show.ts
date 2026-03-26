@@ -19,3 +19,8 @@ export const showCuePointerSchema = z.object({
   showId: z.string(),
   cueId: z.string().nullable(),
 });
+
+export const showReorderSchema = z.object({
+  projectId: z.string(),
+  showIds: z.array(z.string()).min(1),
+});

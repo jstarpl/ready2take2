@@ -1,21 +1,27 @@
 import { observable } from "@trpc/server/observable";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { projectIdSchema, showCreateSchema, showCuePointerSchema, showIdSchema, showUpdateSchema } from "@/shared/schemas";
+import { projectIdSchema, showCreateSchema, showCuePointerSchema, showIdSchema, showReorderSchema, showUpdateSchema } from "@/shared/schemas";
 import { appDataSource } from "../../db/data-source";
 import { Show } from "../../db/entities/Show";
 import { showEvents } from "../../realtime/show-events";
-import { assignShowCuePointer, createShowWithDefaultTrack, resetShow, takeShow, updateShowDetails } from "../../services/show-service";
+import { assignShowCuePointer, createShowWithDefaultTrack, deleteShow, resetShow, reorderShows, takeShow, updateShowDetails } from "../../services/show-service";
 import type { ShowEvent } from "@/shared/types/domain";
 
 export const showRouter = createTRPCRouter({
   listByProject: protectedProcedure.input(projectIdSchema).query(async ({ input }) => {
     return appDataSource.getRepository(Show).find({
       where: { projectId: input.projectId },
-      order: { createdAt: "DESC" },
+      order: { orderKey: "ASC" },
     });
   }),
   create: protectedProcedure.input(showCreateSchema).mutation(async ({ input }) => {
     return createShowWithDefaultTrack(input.projectId, input.name);
+  }),
+  reorder: protectedProcedure.input(showReorderSchema).mutation(async ({ input }) => {
+    return reorderShows(input.projectId, input.showIds);
+  }),
+  delete: protectedProcedure.input(showIdSchema).mutation(async ({ input }) => {
+    return deleteShow(input.showId);
   }),
   update: protectedProcedure.input(showUpdateSchema).mutation(async ({ input }) => {
     return updateShowDetails(input.id, input.name, input.status);

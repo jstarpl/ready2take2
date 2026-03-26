@@ -378,7 +378,7 @@ function SortableCueRow({
         <Button
           size="sm"
           variant="outline"
-          className="px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          className="px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:text-destructive"
           onClick={() => onDelete(cue.id)}
           disabled={isDeleting}
           aria-label={`Delete cue ${cue.comment || (cue.cueOffsetMs !== null ? formatOffset(cue.cueOffsetMs) : "with no comment")}`}
@@ -1020,7 +1020,7 @@ function ShowWorkspaceContent() {
         <Card className="fixed top-0 left-0 right-0 z-40 bg-card/75 border-l-0 border-r-0 border-t-0">
           <CardHeader className="grid items-center gap-4 grid-cols-[auto_1fr_auto] justify-items-start">
             <div>
-              <Button variant="ghost" size="default" onClick={() => navigate("/shows")} aria-label="Back to show list">
+              <Button variant="ghost" size="default" onClick={() => navigate(`/projects/${show.projectId}`)} aria-label="Back to show list">
                 <ArrowLeft size={24} />
               </Button>
             </div>
@@ -1118,7 +1118,7 @@ function ShowWorkspaceContent() {
             <div className="flex items-end justify-between gap-4">
               <div className="flex gap-2 items-center flex-wrap">
                 <CardTitle>{show.name}</CardTitle>
-                <Badge>{show.status}</Badge>
+                <Badge className="shrink-0 capitalize">{show.status}</Badge>
               </div>
             </div>
           </CardHeader>
@@ -1346,7 +1346,7 @@ function ShowWorkspaceContent() {
               <Button type="button" variant="outline" onClick={() => (store.activeModal = null)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={!snapshot.trackToRemoveId || deleteTrackMutation.isPending}>
+              <Button type="submit" className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={!snapshot.trackToRemoveId || deleteTrackMutation.isPending}>
                 Remove track
               </Button>
             </div>

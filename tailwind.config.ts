@@ -24,6 +24,7 @@ export default {
         "popover-foreground": "hsl(var(--popover-foreground))",
         success: "hsl(var(--success))",
         warning: "hsl(var(--warning))",
+        destructive: "hsl(var(--destructive))",
       },
       fontFamily: {
         sans: ["Manrope", "ui-sans-serif", "system-ui", "sans-serif"],

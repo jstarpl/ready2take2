@@ -4,17 +4,20 @@ import { Project } from "../db/entities/Project";
 import { Show } from "../db/entities/Show";
 import { Track } from "../db/entities/Track";
 import { showEvents } from "../realtime/show-events";
+import { deleteAllShowMediaFiles } from "./show-media-service";
 import { triggerNextCueVideoMixerAutomation } from "./video-mixer-service";
 
 export async function createShowWithDefaultTrack(projectId: string, name: string) {
   return appDataSource.transaction(async (manager) => {
     const project = await manager.findOneByOrFail(Project, { id: projectId });
+    const existingShows = await manager.find(Show, { where: { projectId: project.id } });
 
     const show = manager.create(Show, {
       project,
       projectId: project.id,
       name,
       status: "draft",
+      orderKey: String(existingShows.length).padStart(4, "0"),
       currentCueId: null,
       currentCueTakenAt: null,
       nextCueId: null,
@@ -34,6 +37,35 @@ export async function createShowWithDefaultTrack(projectId: string, name: string
 
     showEvents.publish({ type: "show.updated", showId: savedShow.id, entityId: savedShow.id });
     return savedShow;
+  });
+}
+
+export async function deleteShow(showId: string) {
+  const showRepository = appDataSource.getRepository(Show);
+  const show = await showRepository.findOneByOrFail({ id: showId });
+  await showRepository.remove(show);
+  await deleteAllShowMediaFiles(showId);
+}
+
+export async function reorderShows(projectId: string, showIds: string[]) {
+  return appDataSource.transaction(async (manager) => {
+    const showRepository = manager.getRepository(Show);
+    const shows = await showRepository.findBy({ projectId });
+
+    if (shows.length !== showIds.length) {
+      throw new Error("Show reorder must include every show in the project.");
+    }
+
+    const byId = new Map(shows.map((s) => [s.id, s]));
+    if (showIds.some((id) => !byId.has(id)) || new Set(showIds).size !== showIds.length) {
+      throw new Error("Show reorder contains invalid show ids.");
+    }
+
+    showIds.forEach((showId, index) => {
+      byId.get(showId)!.orderKey = String(index).padStart(4, "0");
+    });
+
+    await showRepository.save(Array.from(byId.values()));
   });
 }
 

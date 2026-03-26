@@ -19,6 +19,10 @@ function getShowUploadDirectory(showId: string) {
   return path.join(uploadsRootDirectory, showId);
 }
 
+export async function deleteAllShowMediaFiles(showId: string) {
+  await fs.promises.rm(getShowUploadDirectory(showId), { recursive: true, force: true });
+}
+
 function getPublicUploadPath(showId: string, storedName: string) {
   return `/uploads/${showId}/${storedName}`;
 }
