@@ -147,7 +147,7 @@ export function MediaTimeline({
       </div>
 
       <div
-        className="pointer-events-none absolute top-1/2 z-20 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary bg-background shadow-sm"
+        className="pointer-events-none absolute top-1/2 z-20 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary border-2 bg-background shadow-sm"
         style={{ left: `${playedPercent}%` }}
       />
     </div>
