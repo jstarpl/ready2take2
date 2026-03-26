@@ -16,6 +16,7 @@ export async function createShowWithDefaultTrack(projectId: string, name: string
       name,
       status: "draft",
       currentCueId: null,
+      currentCueTakenAt: null,
       nextCueId: null,
     });
 
@@ -50,6 +51,9 @@ export async function assignShowCuePointer(showId: string, cueId: string | null,
   }
 
   show[field] = cueId;
+  if (field === "currentCueId") {
+    show.currentCueTakenAt = cueId ? new Date() : null;
+  }
   await showRepository.save(show);
 
   showEvents.publish({
@@ -99,6 +103,7 @@ export async function takeShow(showId: string) {
     const followingCueId = show.cues[nextCueIndex + 1]?.id ?? null;
 
     show.currentCueId = currentCueId;
+    show.currentCueTakenAt = currentCueId ? new Date() : null;
     show.nextCueId = followingCueId;
 
     const savedShow = await showRepository.save(show);
@@ -106,12 +111,55 @@ export async function takeShow(showId: string) {
     showEvents.publish({
       type: "show.currentCueChanged",
       showId: savedShow.id,
-      entityId: currentCueId ?? savedShow.id,
+      entityId: currentCueId,
     });
     showEvents.publish({
       type: "show.nextCueChanged",
       showId: savedShow.id,
-      entityId: followingCueId ?? savedShow.id,
+      entityId: followingCueId
+    });
+
+    triggerNextCueVideoMixerAutomation(savedShow.id);
+
+    return savedShow;
+  });
+}
+
+export async function resetShow(showId: string) {
+  return appDataSource.transaction(async (manager) => {
+    const showRepository = manager.getRepository(Show);
+
+    const show = await showRepository.findOne({
+      where: { id: showId },
+      relations: {
+        cues: true,
+      },
+      order: {
+        cues: {
+          orderKey: "ASC",
+        },
+      },
+    });
+
+    if (!show) {
+      throw new Error("Show not found.");
+    }
+
+    show.currentCueId = null;
+    show.currentCueTakenAt = null;
+    show.nextCueId = null;
+
+    const savedShow = await showRepository.save(show);
+
+    showEvents.publish({
+      type: "show.currentCueChanged",
+      showId: savedShow.id,
+      entityId: undefined,
+    });
+    showEvents.publish({
+      type: "show.nextCueChanged",
+      showId: savedShow.id,
+      entityId: undefined,
     });
 
     triggerNextCueVideoMixerAutomation(savedShow.id);

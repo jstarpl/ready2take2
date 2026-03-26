@@ -11,6 +11,7 @@ export class Show extends BaseRecord {
   name!: string;
   status!: "draft" | "live" | "archived";
   currentCueId!: string | null;
+  currentCueTakenAt!: Date | null;
   currentCue!: Cue | null;
   nextCueId!: string | null;
   nextCue!: Cue | null;
@@ -31,6 +32,7 @@ export const ShowSchema = new EntitySchema<Show>({
     name: { type: String },
     status: { type: String, default: "draft" },
     currentCueId: { type: String, nullable: true },
+    currentCueTakenAt: { type: "datetime", nullable: true },
     nextCueId: { type: String, nullable: true },
   },
   relations: {

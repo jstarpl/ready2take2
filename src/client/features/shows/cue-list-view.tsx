@@ -29,11 +29,12 @@ interface CueListItemProps {
     cue: Cue;
     show: Show;
     status: "current" | "next" | "following";
+    countdownText: string;
     trackValues: Record<string, string | null>;
     cameraColors: Record<string, string>;
 }
 
-function CueListItem({ cue, show, status, trackValues, cameraColors }: CueListItemProps) {
+function CueListItem({ cue, show, status, countdownText, trackValues, cameraColors }: CueListItemProps) {
     const statusColors = {
         current: "bg-red-600/30 border-l-8 border-l-red-500",
         next: "bg-green-600/30 border-l-8 border-l-green-500",
@@ -50,7 +51,7 @@ function CueListItem({ cue, show, status, trackValues, cameraColors }: CueListIt
                 </div>
                 <div className="flex-1 justify-self-end">
                     <div className="font-mono text-4xl text-foreground">
-                        {cue.cueOffsetMs !== null ? formatOffset(cue.cueOffsetMs) : "—"}
+                        {countdownText}
                     </div>
                 </div>
                 {show.tracks.length > 0 && (
@@ -94,6 +95,29 @@ function formatOffset(ms: number): string {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
+function getCueCountdownText(
+    cue: Cue,
+    currentCue: Cue | undefined,
+    currentCueTakenAt: string | Date | null | undefined,
+    nowMs: number,
+): string {
+    if (!currentCue || currentCue.cueOffsetMs === null || cue.cueOffsetMs === null || !currentCueTakenAt) {
+        return "\u00A0";
+    }
+
+    const takenAtMs = new Date(currentCueTakenAt).getTime();
+    if (Number.isNaN(takenAtMs)) {
+        return "\u00A0";
+    }
+
+    const remainingMs = cue.cueOffsetMs - currentCue.cueOffsetMs - (nowMs - takenAtMs);
+    if (remainingMs <= 0) {
+        return "\u00A0";
+    }
+
+    return formatOffset(remainingMs);
+}
+
 /** Provider component for the cue-list-view store */
 function CueListViewStoreProvider({
     showId,
@@ -127,6 +151,7 @@ function CueListViewContent() {
     const utils = trpc.useUtils();
     const splitterRef = useRef<HTMLDivElement | null>(null);
     const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
+    const [nowMs, setNowMs] = useState(() => Date.now());
 
     const showQuery = trpc.show.getDetail.useQuery(
         { showId: showId ?? "" },
@@ -178,6 +203,23 @@ function CueListViewContent() {
         return Array.from(identifiers).sort();
     }, [snapshot.selectedTrackId, orderedCues]);
 
+    const currentCue = orderedCues.find((c: any) => c.id === show?.currentCueId);
+
+    useEffect(() => {
+        if (!show?.currentCueTakenAt || !currentCue || currentCue.cueOffsetMs === null) {
+            return;
+        }
+
+        setNowMs(Date.now());
+        const intervalId = window.setInterval(() => {
+            setNowMs(Date.now());
+        }, 1000);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [currentCue, show?.currentCueTakenAt]);
+
     // Now safe to have early returns
     if (!showId) {
         return (
@@ -212,7 +254,7 @@ function CueListViewContent() {
     // Calculate cue windows
     // After guards, show is guaranteed to be non-null
     const safeShow = show!;
-    const currentCue = orderedCues.find((c: any) => c.id === safeShow.currentCueId);
+    const currentCueIndex = orderedCues.findIndex((c: any) => c.id === safeShow.currentCueId);
     const nextCueIndex = orderedCues.findIndex((c: any) => c.id === safeShow.nextCueId);
 
     // Build top pane cues: current + next + up to 23 following
@@ -221,13 +263,13 @@ function CueListViewContent() {
     if (nextCueIndex !== -1) {
         topPaneCues = orderedCues.slice(nextCueIndex, nextCueIndex + 75);
     } else {
-        topPaneCues = orderedCues.slice(75).filter((cue) => cue.id !== safeShow.currentCueId);
+        topPaneCues = orderedCues.slice(0, 75).filter((cue) => cue.id !== safeShow.currentCueId);
     }
 
     // Build bottom pane: cues filtered by selected track and technical identifier
     let bottomPaneCues: any[] = [];
     if (snapshot.selectedTrackId && snapshot.selectedTechnicalIdentifier) {
-        bottomPaneCues = orderedCues.filter((cue: any) => {
+        bottomPaneCues = orderedCues.slice(currentCueIndex >= 0 ? currentCueIndex : nextCueIndex >= 0 ? nextCueIndex : 0, undefined).filter((cue: any) => {
             const cueTrackValue = cue.cueTrackValues?.find(
                 (ctv: any) => ctv.trackId === snapshot.selectedTrackId,
             );
@@ -276,6 +318,7 @@ function CueListViewContent() {
                                     cue={currentCue}
                                     show={safeShow}
                                     status={"current"}
+                                    countdownText={'\u00A0'}
                                     cameraColors={cameraColors}
                                     trackValues={currentCue.cueTrackValues?.reduce(
                                         (acc: Record<string, string | null>, ctv: any) => {
@@ -308,6 +351,7 @@ function CueListViewContent() {
                                         cue={cue}
                                         show={safeShow}
                                         status={status}
+                                        countdownText={getCueCountdownText(cue, currentCue, safeShow.currentCueTakenAt, nowMs)}
                                         cameraColors={cameraColors}
                                         trackValues={trackValues}
                                     />
@@ -410,6 +454,7 @@ function CueListViewContent() {
                                     cue={cue}
                                     show={safeShow}
                                     status={status}
+                                    countdownText={getCueCountdownText(cue, currentCue, safeShow.currentCueTakenAt, nowMs)}
                                     cameraColors={cameraColors}
                                     trackValues={trackValues}
                                 />

@@ -560,6 +560,13 @@ function ShowWorkspaceContent() {
       }
     },
   });
+  const resetShowMutation = trpc.show.reset.useMutation({
+    onSuccess: async () => {
+      if (showId) {
+        await utils.show.getDetail.invalidate({ showId });
+      }
+    },
+  });
   const updateCueMutation = trpc.cue.update.useMutation({
     onSuccess: async () => {
       if (showId) {
@@ -620,6 +627,7 @@ function ShowWorkspaceContent() {
     [snapshot.selectedCueId, cueById],
   );
   const canTake = Boolean(showId && show?.nextCueId && !takeShowMutation.isPending);
+  const canReset = Boolean(showId && (show?.nextCueId || show?.currentCueId) && !resetShowMutation.isPending);
   const canMoveCueToNow = Boolean(selectedCue && !updateCueMutation.isPending);
 
   const nextCueId = useMemo(() => {
@@ -650,6 +658,14 @@ function ShowWorkspaceContent() {
     }
 
     takeShowMutation.mutate({ showId });
+  }
+
+  function handleReset() {
+    if (!showId || resetShowMutation.isPending) {
+      return;
+    }
+
+    resetShowMutation.mutate({ showId });
   }
 
   function handleMoveCueToNow() {
@@ -1052,6 +1068,9 @@ function ShowWorkspaceContent() {
                       Open Cue List View
                     </MenubarItem>
                     <MenubarSeparator />
+                    <MenubarItem disabled={!canReset} onSelect={handleReset}>
+                      Reset
+                    </MenubarItem>
                   </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>
