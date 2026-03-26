@@ -84,7 +84,7 @@ export function ProjectShell() {
                       <div className="font-semibold">{project.name}</div>
                       <div className="text-sm text-muted-foreground">{project.description ?? "No description"}</div>
                     </div>
-                    <Badge>{project.shows.length} shows</Badge>
+                    <Badge className="text-nowrap">{project.shows.length} shows</Badge>
                   </div>
                 </Link>
               ))}

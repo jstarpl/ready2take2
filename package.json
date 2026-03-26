@@ -13,7 +13,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "AGPL-3.0-or-later",
   "packageManager": "pnpm@10.13.1",
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
