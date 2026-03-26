@@ -15,7 +15,7 @@ import { SESSION_COOKIE_NAME } from "./auth/constants";
 import { getSessionUser } from "./services/auth-service";
 import { createShowMediaFile, deleteShowMediaFile, ensureUploadDirectories, uploadsTempDirectory, uploadsRootDirectory } from "./services/show-media-service";
 import { seedInitialData } from "./services/seed-service";
-import { shutdownVideoMixerConnections } from "./services/video-mixer-service";
+import { reconnectVideoMixerConnections, shutdownVideoMixerConnections } from "./services/video-mixer-service";
 import { banner, configureLogger, getLogger } from "./lib/logger";
 
 const logger = getLogger('server');
@@ -133,6 +133,8 @@ async function bootstrap() {
       return createContext({ req: request, res: response });
     },
   });
+
+  await reconnectVideoMixerConnections();
 
   let shutdownStarted = false;
   const shutdown = async (signal: string) => {

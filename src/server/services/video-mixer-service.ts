@@ -94,7 +94,7 @@ export async function getVideoMixerSettings(): Promise<VideoMixerSettingsSnapsho
   };
 }
 
-export async function updateVideoMixerSettings(settings: VideoMixerSettingsSnapshot): Promise<VideoMixerSettingsSnapshot> {
+export async function updateVideoMixerSettings(settings: Omit<VideoMixerSettingsSnapshot, "atemMe"> & { atemMe: number | null }): Promise<VideoMixerSettingsSnapshot> {
   const repository = appDataSource.getRepository(VideoMixerSetting);
   const existing = await repository.findOneBy({ key: GLOBAL_VIDEO_MIXER_SETTINGS_KEY });
   const previousSettings = existing
@@ -401,7 +401,6 @@ async function executeShowTakeForProgramInput(inputNumber: number) {
 
 async function attachPersistentVmixTallyListener(connection: PersistentVmixConnection) {
   connection.onTally = (tally: string) => {
-    logger.debug`Received vMix tally event with tally string: ${tally}`;
     void handlePersistentVmixTallyChanged(connection, tally).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "Unknown error";
       logger.error`Failed while processing vMix tally event: ${message}`;
@@ -679,6 +678,8 @@ function disposePersistentVmixConnection() {
     return;
   }
 
+  logger.info`Disconnecting vMix connection`;
+
   if (persistentVmixConnection.onTally) {
     persistentVmixConnection.connection.off("tally", persistentVmixConnection.onTally);
     persistentVmixConnection.onTally = null;
@@ -693,6 +694,8 @@ async function disposePersistentAtemConnection() {
   if (!persistentAtemConnection) {
     return;
   }
+
+  logger.info`Disconnecting ATEM connection`;
 
   const connection = persistentAtemConnection;
   persistentAtemConnection = null;
