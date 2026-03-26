@@ -4,6 +4,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import express from "express";
 import multer from "multer";
+import { configure, getConsoleSink } from "@logtape/logtape"
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { applyWSSHandler } from "@trpc/server/adapters/ws";
 import { WebSocketServer } from "ws";
@@ -15,10 +16,13 @@ import { getSessionUser } from "./services/auth-service";
 import { createShowMediaFile, deleteShowMediaFile, ensureUploadDirectories, uploadsTempDirectory, uploadsRootDirectory } from "./services/show-media-service";
 import { seedInitialData } from "./services/seed-service";
 import { shutdownVideoMixerConnections } from "./services/video-mixer-service";
+import { banner, configureLogger, getLogger } from "./lib/logger";
 
-const PORT = process.env.PORT || 3000;
+const logger = getLogger('server');
+const PORT = Number(process.env.PORT) || 3000;
 
 async function bootstrap() {
+  await configureLogger();
   fs.mkdirSync(path.resolve(process.cwd(), "data"), { recursive: true });
   ensureUploadDirectories();
   await appDataSource.initialize();
@@ -104,7 +108,9 @@ async function bootstrap() {
   );
 
   const server = app.listen(PORT, () => {
-    console.log(`Ready2Take2 server listening on http://localhost:${PORT}`);
+    logger.debug`App server listening on http://localhost:${PORT}`;
+
+    banner(PORT);
   });
 
   const wss = new WebSocketServer({ server, path: "/trpc" });
@@ -135,11 +141,11 @@ async function bootstrap() {
     }
 
     shutdownStarted = true;
-    console.log(`Shutting down Ready2Take2 server (${signal})`);
+    logger.info`Shutting down Ready2Take2 server (${signal})`;
 
     await shutdownVideoMixerConnections().catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "Unknown error";
-      console.error(`[video-mixer] Failed during shutdown cleanup: ${message}`);
+      logger.error`Failed during shutdown cleanup: ${message}`;
     });
 
     wss.close();
@@ -161,7 +167,8 @@ async function bootstrap() {
   });
 }
 
-bootstrap().catch((error) => {
-  console.error(error);
+bootstrap().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  logger.error`Bootstrap failed: ${message}`;
   process.exit(1);
 });

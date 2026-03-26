@@ -212,6 +212,29 @@ function CueListViewContent() {
         };
     }, [currentCue, show?.currentCueTakenAt]);
 
+    useEffect(() => {
+        function parseHash() {
+            const params = new URLSearchParams(window.location.hash.slice(1));
+            const trackId = params.get("trackId");
+            const identifier = params.get("identifier");
+            if (trackId) {
+                store.selectedTrackId = trackId;
+            }
+            if (identifier) {
+                store.selectedTechnicalIdentifier = identifier;
+            }
+        }
+
+        // On initial load, parse hash for selected track and technical identifier
+        parseHash();
+
+        window.addEventListener("hashchange", parseHash);
+
+        return () => {
+            window.removeEventListener("hashchange", parseHash);
+        };
+    }, []);
+
     // Now safe to have early returns
     if (!showId) {
         return (
@@ -291,6 +314,32 @@ function CueListViewContent() {
 
         window.addEventListener("pointermove", handlePointerMove);
         window.addEventListener("pointerup", handlePointerUp);
+    }
+
+    function handleSelectedTrackChange(selectedTrackId?: string) {
+        store.selectedTrackId = selectedTrackId || null;
+        store.selectedTechnicalIdentifier = null;
+        updateHash(selectedTrackId || null, null);
+    }
+
+    function handleSelectedTechnicalIdentifierChange(selectedTechnicalIdentifier?: string) {
+        store.selectedTechnicalIdentifier = selectedTechnicalIdentifier || null;
+        updateHash(store.selectedTrackId, selectedTechnicalIdentifier || null);
+    }
+
+    function updateHash(selectedTrackId: string | null, selectedTechnicalIdentifier: string | null) {
+        const params = new URLSearchParams(window.location.hash.slice(1));
+        if (selectedTrackId) {
+            params.set("trackId", selectedTrackId);
+        } else {
+            params.delete("trackId");
+        }
+        if (selectedTechnicalIdentifier) {
+            params.set("identifier", selectedTechnicalIdentifier);
+        } else {
+            params.delete("identifier");
+        }
+        window.location.hash = params.toString();
     }
 
     return (
@@ -376,10 +425,7 @@ function CueListViewContent() {
                             </label>
                             <select
                                 value={snapshot.selectedTrackId || ""}
-                                onChange={(e) => {
-                                    store.selectedTrackId = e.target.value || null;
-                                    store.selectedTechnicalIdentifier = null;
-                                }}
+                                onChange={(e) => handleSelectedTrackChange(e.target.value || undefined)}
                                 className="w-full rounded border border-border/70 bg-background px-3 py-2 text-sm"
                             >
                                 <option value="">— Select track —</option>
@@ -398,9 +444,7 @@ function CueListViewContent() {
                             </label>
                             <select
                                 value={snapshot.selectedTechnicalIdentifier || ""}
-                                onChange={(e) => {
-                                    store.selectedTechnicalIdentifier = e.target.value || null;
-                                }}
+                                onChange={(e) => handleSelectedTechnicalIdentifierChange(e.target.value || undefined)}
                                 disabled={!snapshot.selectedTrackId}
                                 className="w-full rounded border border-border/70 bg-background px-3 py-2 text-sm disabled:opacity-50"
                             >

@@ -2,6 +2,9 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { Atem, AtemConnectionStatus } from "atem-connection";
 import { ConnectionTCP } from "node-vmix";
 import { appDataSource } from "../db/data-source";
+import { getLogger } from "../lib/logger";
+
+const logger = getLogger('video-mixer');
 import { Show } from "../db/entities/Show";
 import { VideoMixerSetting, type VideoMixerMode } from "../db/entities/VideoMixerSetting";
 
@@ -112,7 +115,7 @@ export async function updateVideoMixerSettings(settings: VideoMixerSettingsSnaps
 export function triggerNextCueVideoMixerAutomation(showId: string) {
   void syncNextCueVideoMixerPreview(showId).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : "Unknown error";
-    console.error(`[video-mixer] Failed to update preview for show ${showId}: ${message}`);
+    logger.error`Failed to update preview for show ${showId}: ${message}`;
   });
 }
 
@@ -126,13 +129,13 @@ export async function testVideoMixerPreview(): Promise<VideoMixerPreviewTestResu
   if (settings.mode === "vmix") {
     const vmix = await getPersistentVmixConnection(settings);
     await vmix.send({ Function: "PreviewInput", Input: "1" });
-    console.info(`[video-mixer] Sent test preview to vMix using input 1.`);
+    logger.info`Sent test preview to vMix using input 1.`;
     await sleep(MIXER_TEST_DELAY);
     await vmix.send({ Function: "PreviewInput", Input: "2" });
-    console.info(`[video-mixer] Sent test preview to vMix using input 2.`);
+    logger.info`Sent test preview to vMix using input 2.`;
     await sleep(MIXER_TEST_DELAY);
     await vmix.send({ Function: "PreviewInput", Input: "1" });
-    console.info(`[video-mixer] Sent test preview to vMix using input 1.`);
+    logger.info`Sent test preview to vMix using input 1.`;
     
     return {
       mode: "vmix",
@@ -141,13 +144,13 @@ export async function testVideoMixerPreview(): Promise<VideoMixerPreviewTestResu
 
   const atem = await getPersistentAtemConnection(settings);
   await atem.changePreviewInput(1);
-  console.info(`[video-mixer] Sent test preview to ATEM using input 1.`);
+  logger.info`Sent test preview to ATEM using input 1.`;
   await sleep(MIXER_TEST_DELAY);
   await atem.changePreviewInput(2);
-  console.info(`[video-mixer] Sent test preview to ATEM using input 2.`);
+  logger.info`Sent test preview to ATEM using input 2.`;
   await sleep(MIXER_TEST_DELAY);
   await atem.changePreviewInput(1);
-  console.info(`[video-mixer] Sent test preview to ATEM using input 1.`);
+  logger.info`Sent test preview to ATEM using input 1.`;
 
   return {
     mode: "atem",
@@ -336,9 +339,7 @@ async function sendPreviewToVmix(
 ) {
   const vmix = await getPersistentVmixConnection(settings);
   await vmix.send({ Function: "PreviewInput", Input: resolvedIdentifier.technicalIdentifier });
-  console.info(
-    `[video-mixer] vMix preview updated for show ${resolvedIdentifier.showId} using input ${resolvedIdentifier.technicalIdentifier}.`,
-  );
+  logger.info`vMix preview updated for show ${resolvedIdentifier.showId} using input ${resolvedIdentifier.technicalIdentifier}.`;
 }
 
 async function sendPreviewToAtem(
@@ -347,15 +348,13 @@ async function sendPreviewToAtem(
 ) {
   const inputNumber = Number.parseInt(resolvedIdentifier.technicalIdentifier.trim(), 10);
   if (Number.isNaN(inputNumber)) {
-    console.warn(
-      `[video-mixer] Skipping ATEM preview update because technical identifier '${resolvedIdentifier.technicalIdentifier}' is not a valid number.`,
-    );
+    logger.warn`Skipping ATEM preview update because technical identifier '${resolvedIdentifier.technicalIdentifier}' is not a valid number.`;
     return;
   }
 
   const atem = await getPersistentAtemConnection(settings);
   await atem.changePreviewInput(inputNumber);
-  console.info(`[video-mixer] ATEM preview updated to input ${inputNumber} for show ${resolvedIdentifier.showId}.`);
+  logger.info`ATEM preview updated to input ${inputNumber} for show ${resolvedIdentifier.showId}.`;
 }
 
 async function reconfigurePersistentVideoMixerConnections(
@@ -373,14 +372,14 @@ async function reconfigurePersistentVideoMixerConnections(
   if (shouldUseVmix(nextSettings)) {
     void getPersistentVmixConnection(nextSettings).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "Unknown error";
-      console.error(`[video-mixer] Failed to establish persistent vMix connection: ${message}`);
+      logger.error`Failed to establish persistent vMix connection: ${message}`;
     });
   }
 
   if (shouldUseAtem(nextSettings)) {
     void getPersistentAtemConnection(nextSettings).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "Unknown error";
-      console.error(`[video-mixer] Failed to establish persistent ATEM connection: ${message}`);
+      logger.error`Failed to establish persistent ATEM connection: ${message}`;
     });
   }
 }
