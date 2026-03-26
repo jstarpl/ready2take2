@@ -210,6 +210,60 @@ function SheetDialog({ open, title, description, onClose, children }: SheetDialo
   );
 }
 
+interface CameraColorSetting {
+  identifier: string;
+  color: string;
+}
+
+interface LiveCueRecordingBarProps {
+  trackName: string;
+  cameraColorSettings: CameraColorSetting[];
+  lastIdentifier: string | null;
+  onIdentifierSelect: (identifier: string) => void;
+  onStop: () => void;
+}
+
+function LiveCueRecordingBar({ trackName, cameraColorSettings, lastIdentifier, onIdentifierSelect, onStop }: LiveCueRecordingBarProps) {
+  return (
+    <div className="border-b border-red-500/40 bg-red-950/25 px-4 py-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+        <span className="text-xs font-bold uppercase tracking-widest text-red-400 shrink-0">Live Cue Recording</span>
+        <span className="text-xs text-muted-foreground shrink-0">→ {trackName}</span>
+        <div className="flex flex-wrap gap-1.5 flex-1">
+          {cameraColorSettings.map((setting, i) => {
+            const keyLabel = i < 9 ? String(i + 1) : "0";
+            const isLast = lastIdentifier === setting.identifier;
+            return (
+              <button
+                key={setting.identifier}
+                onClick={() => onIdentifierSelect(setting.identifier)}
+                className="relative flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-opacity hover:opacity-90 active:opacity-75"
+                style={{ backgroundColor: setting.color, color: "white", textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}
+                title={`Key ${keyLabel}: record "${setting.identifier}"`}
+              >
+                {setting.identifier !== keyLabel && <span className="text-[10px] opacity-70 font-mono">{keyLabel}</span>}
+                <span>{setting.identifier}</span>
+                {isLast && (
+                  <span className="absolute inset-0 rounded pointer-events-none ring-2 ring-red-500 ring-offset-1 ring-offset-black/50" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="shrink-0 border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+          onClick={onStop}
+        >
+          Stop
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function SortableCueRow({
   cue,
   show,
@@ -389,9 +443,12 @@ function ShowWorkspaceContent() {
   const [cueTrackValueDrafts, setCueTrackValueDrafts] = useState<Record<string, string>>({});
   const [orderedCueIds, setOrderedCueIds] = useState<string[]>([]);
   const [deletingMediaFileId, setDeletingMediaFileId] = useState<string | null>(null);
+  const [liveRecordingDialogTrackId, setLiveRecordingDialogTrackId] = useState<string>("");
   const isDraggingRef = useRef(false);
   const cueRefMapRef = useRef<Map<string, HTMLElement>>(new Map());
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingLiveCueRef = useRef<{ identifier: string; trackId: string } | null>(null);
+  const pendingScrollCueIdRef = useRef<string | null>(null);
   const selectedUploadPreviewUrl = useMemo(() => {
     if (!snapshot.selectedUpload) {
       return null;
@@ -529,6 +586,25 @@ function ShowWorkspaceContent() {
     },
   });
 
+  const liveCueCreateMutation = trpc.cue.create.useMutation({
+    onSuccess: async (createdCue) => {
+      const pending = pendingLiveCueRef.current;
+      pendingLiveCueRef.current = null;
+      store.selectedCueId = createdCue.id;
+      pendingScrollCueIdRef.current = createdCue.id;
+      if (pending && showId) {
+        updateCueTrackValueMutation.mutate({
+          cueId: createdCue.id,
+          trackId: pending.trackId,
+          technicalIdentifier: pending.identifier,
+        });
+      }
+      if (showId) {
+        await utils.show.getDetail.invalidate({ showId });
+      }
+    },
+  });
+
   const show = showQuery.data;
   const cueById = useMemo(() => new Map((show?.cues ?? []).map((c) => [c.id, c])), [show?.cues]);
   const cueRows = useMemo(
@@ -550,6 +626,19 @@ function ShowWorkspaceContent() {
     }, 0);
     return String(max + 1);
   }, [show?.cues]);
+
+  function handleLiveCueRecord(identifier: string) {
+    if (!showId || !snapshot.liveCueRecordingTrackId || liveCueCreateMutation.isPending) {
+      return;
+    }
+    store.lastLiveCueIdentifier = identifier;
+    pendingLiveCueRef.current = { identifier, trackId: snapshot.liveCueRecordingTrackId };
+    liveCueCreateMutation.mutate({
+      showId,
+      comment: "",
+      cueOffsetMs: Math.round(store.currentTimeMs),
+    });
+  }
 
   function handleTake() {
     if (!showId || !show?.nextCueId || takeShowMutation.isPending) {
@@ -625,6 +714,23 @@ function ShowWorkspaceContent() {
     setCueTrackValueDrafts(nextDrafts);
   }, [show]);
 
+  // Scroll the pending live-recorded cue into view once it appears in the ordered list.
+  // rAF defers until after child effects have populated cueRefMapRef.
+  useEffect(() => {
+    const targetId = pendingScrollCueIdRef.current;
+    if (!targetId || !orderedCueIds.includes(targetId)) {
+      return;
+    }
+    const frameId = requestAnimationFrame(() => {
+      const element = cueRefMapRef.current.get(targetId);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+      pendingScrollCueIdRef.current = null;
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [orderedCueIds]);
+
   useEffect(() => {
     if (!showId) {
       navigate("/");
@@ -691,6 +797,23 @@ function ShowWorkspaceContent() {
       if (event.ctrlKey && event.altKey && event.code === "Space") {
         event.preventDefault();
         store.activeModal = "addCue";
+        return;
+      }
+
+      // Live Cue Recording: number keys 1-9, 0 map to camera color settings index 0-9
+      if (!isEditableTarget && snapshot.liveCueRecordingMode) {
+        const keyToIndex: Record<string, number> = {
+          Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4,
+          Digit6: 5, Digit7: 6, Digit8: 7, Digit9: 8, Digit0: 9,
+        };
+        const idx = keyToIndex[event.code];
+        if (idx !== undefined) {
+          event.preventDefault();
+          const setting = cameraColorSettingsQuery.data?.[idx];
+          if (setting) {
+            handleLiveCueRecord(setting.identifier);
+          }
+        }
       }
     };
 
@@ -698,7 +821,7 @@ function ShowWorkspaceContent() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleMoveCueToNow, handleTake, show?.nextCueId, showId, takeShowMutation.isPending, store, snapshot.selectedCueId, orderedCueIds]);
+  }, [handleMoveCueToNow, handleTake, show?.nextCueId, showId, takeShowMutation.isPending, store, snapshot.selectedCueId, orderedCueIds, snapshot.liveCueRecordingMode, cameraColorSettingsQuery.data, handleLiveCueRecord]);
 
   useEffect(() => {
     if (store.activeModal !== "addCue") {
@@ -731,6 +854,15 @@ function ShowWorkspaceContent() {
     if (!show.tracks.some((track) => track.id === store.trackToRemoveId)) {
       store.trackToRemoveId = show.tracks[show.tracks.length - 1]?.id ?? "";
     }
+
+    // Stop live cue recording if the selected track has been removed
+    if (store.liveCueRecordingMode && store.liveCueRecordingTrackId) {
+      if (!show.tracks.some((track) => track.id === store.liveCueRecordingTrackId)) {
+        store.liveCueRecordingMode = false;
+        store.liveCueRecordingTrackId = null;
+        store.lastLiveCueIdentifier = null;
+      }
+    }
   }, [show?.tracks, store]);
 
   useEffect(() => {
@@ -743,6 +875,17 @@ function ShowWorkspaceContent() {
       store.selectedMediaFileId = null;
     }
   }, [show, snapshot.selectedMediaFileId, store]);
+
+  useEffect(() => {
+    if (snapshot.activeModal === "selectLiveCueTrack" && show?.tracks.length) {
+      setLiveRecordingDialogTrackId((prev) => {
+        if (!prev || !show.tracks.some((t) => t.id === prev)) {
+          return show.tracks[0]?.id ?? "";
+        }
+        return prev;
+      });
+    }
+  }, [snapshot.activeModal, show?.tracks]);
 
   useEffect(() => {
     return () => {
@@ -888,6 +1031,23 @@ function ShowWorkspaceContent() {
                     <MenubarItem onSelect={() => window.open(`/shows/${showId}/cue-list-view`, '_blank')}>
                       Open Cue List View
                     </MenubarItem>
+                    <MenubarSeparator />
+                    <MenubarCheckboxItem
+                      checked={snapshot.liveCueRecordingMode}
+                      onCheckedChange={() => {
+                        if (snapshot.liveCueRecordingMode) {
+                          store.liveCueRecordingMode = false;
+                          store.liveCueRecordingTrackId = null;
+                          store.lastLiveCueIdentifier = null;
+                        } else {
+                          setLiveRecordingDialogTrackId(show.tracks[0]?.id ?? "");
+                          store.activeModal = "selectLiveCueTrack";
+                        }
+                      }}
+                      disabled={!show.tracks.length}
+                    >
+                      Live Cue Recording
+                    </MenubarCheckboxItem>
                   </MenubarContent>
                 </MenubarMenu>
                 <MenubarMenu>
@@ -1161,13 +1321,87 @@ function ShowWorkspaceContent() {
             </div>
           </form>
         </ModalDialog>
+
+        <ModalDialog
+          open={snapshot.activeModal === "selectLiveCueTrack"}
+          title="Live Cue Recording"
+          description="Select the track to record camera identifiers into. Press number keys 1–9, 0 to insert cues at the current media position."
+          onClose={() => (store.activeModal = null)}
+        >
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!liveRecordingDialogTrackId) return;
+              store.liveCueRecordingTrackId = liveRecordingDialogTrackId;
+              store.liveCueRecordingMode = true;
+              store.lastLiveCueIdentifier = null;
+              store.activeModal = null;
+            }}
+          >
+            <div className="text-sm text-muted-foreground">Track</div>
+            <select
+              className="flex h-10 w-full border border-input bg-background px-3 py-2 text-sm"
+              value={liveRecordingDialogTrackId}
+              onChange={(event) => setLiveRecordingDialogTrackId(event.target.value)}
+            >
+              {show.tracks.map((track) => (
+                <option key={track.id} value={track.id}>
+                  {track.name} ({track.type})
+                </option>
+              ))}
+            </select>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => (store.activeModal = null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!liveRecordingDialogTrackId}>
+                Start Recording
+              </Button>
+            </div>
+          </form>
+        </ModalDialog>
       </div>
+      {!snapshot.selectedMediaFileId && snapshot.liveCueRecordingMode && (() => {
+        const liveTrackName = show.tracks.find((t) => t.id === snapshot.liveCueRecordingTrackId)?.name ?? "";
+        return (
+          <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/70 bg-card/95 backdrop-blur-sm">
+            <LiveCueRecordingBar
+              trackName={liveTrackName}
+              cameraColorSettings={cameraColorSettingsQuery.data ?? []}
+              lastIdentifier={snapshot.lastLiveCueIdentifier}
+              onIdentifierSelect={handleLiveCueRecord}
+              onStop={() => {
+                store.liveCueRecordingMode = false;
+                store.liveCueRecordingTrackId = null;
+                store.lastLiveCueIdentifier = null;
+              }}
+            />
+          </div>
+        );
+      })()}
       {snapshot.selectedMediaFileId && <ShowMediaPlayer
         show={show}
         serverUrl={SERVER_URL}
         selectedMediaFileId={snapshot.selectedMediaFileId}
         pauseRequested={snapshot.activeModal === "addCue"}
         onCurrentTimeChange={(ms) => (store.currentTimeMs = ms)}
+        topSlot={snapshot.liveCueRecordingMode ? (() => {
+          const liveTrackName = show.tracks.find((t) => t.id === snapshot.liveCueRecordingTrackId)?.name ?? "";
+          return (
+            <LiveCueRecordingBar
+              trackName={liveTrackName}
+              cameraColorSettings={cameraColorSettingsQuery.data ?? []}
+              lastIdentifier={snapshot.lastLiveCueIdentifier}
+              onIdentifierSelect={handleLiveCueRecord}
+              onStop={() => {
+                store.liveCueRecordingMode = false;
+                store.liveCueRecordingTrackId = null;
+                store.lastLiveCueIdentifier = null;
+              }}
+            />
+          );
+        })() : null}
       />}
       <SheetDialog
         open={snapshot.activeModal === "media"}

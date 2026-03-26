@@ -16,10 +16,15 @@ export interface ShowWorkspaceState {
   newTrackType: "custom" | "camera";
 
   // Modal state
-  activeModal: "addCue" | "addTrack" | "removeTrack" | "media" | null;
+  activeModal: "addCue" | "addTrack" | "removeTrack" | "media" | "selectLiveCueTrack" | null;
 
   // Cue selection
   selectedCueId: string | null;
+
+  // Live Cue Recording
+  liveCueRecordingMode: boolean;
+  liveCueRecordingTrackId: string | null;
+  lastLiveCueIdentifier: string | null;
 
   // File upload state
   selectedUpload: File | null;
@@ -42,6 +47,9 @@ export function createShowWorkspaceStore(): ShowWorkspaceState {
     newTrackType: "custom",
     activeModal: null,
     selectedCueId: null,
+    liveCueRecordingMode: false,
+    liveCueRecordingTrackId: null,
+    lastLiveCueIdentifier: null,
     selectedUpload: null,
     uploadError: null,
     isUploading: false,
