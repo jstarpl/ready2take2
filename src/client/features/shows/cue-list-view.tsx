@@ -253,9 +253,9 @@ function CueListViewContent() {
     // If current exists, start from current; otherwise start from next
     let topPaneCues = [] as Cue[];
     if (nextCueIndex !== -1) {
-        topPaneCues = orderedCues.slice(nextCueIndex, nextCueIndex + 75);
+        topPaneCues = orderedCues.slice(nextCueIndex, undefined);
     } else if (currentCueIndex === -1) {
-        topPaneCues = orderedCues.slice(0, 75).filter((cue) => cue.id !== safeShow.currentCueId);
+        topPaneCues = orderedCues.filter((cue) => cue.id !== safeShow.currentCueId);
     }
 
     // Build bottom pane: cues filtered by selected track and technical identifier

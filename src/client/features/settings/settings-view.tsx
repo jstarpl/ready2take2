@@ -255,19 +255,19 @@ export function SettingsView() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1">
                 <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">vMix host</label>
-                <Input value={vmixHost} onChange={(event) => setVmixHost(event.target.value)} placeholder="127.0.0.1" />
+                <Input value={vmixHost} onChange={(event) => setVmixHost(event.target.value)} placeholder="eg. 127.0.0.1" />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">vMix port</label>
-                <Input value={vmixPort} onChange={(event) => setVmixPort(event.target.value)} placeholder="8099" />
+                <Input value={vmixPort} onChange={(event) => setVmixPort(event.target.value)} placeholder="eg. 8099" />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ATEM host</label>
-                <Input value={atemHost} onChange={(event) => setAtemHost(event.target.value)} placeholder="192.168.10.240" />
+                <Input value={atemHost} onChange={(event) => setAtemHost(event.target.value)} placeholder="eg. 192.168.10.240" />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ATEM port</label>
-                <Input value={atemPort} onChange={(event) => setAtemPort(event.target.value)} placeholder="9910" />
+                <Input value={atemPort} onChange={(event) => setAtemPort(event.target.value)} placeholder="eg. 9910" />
               </div>
             </div>
 

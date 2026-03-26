@@ -626,7 +626,7 @@ function ShowWorkspaceContent() {
     () => (snapshot.selectedCueId ? cueById.get(snapshot.selectedCueId) ?? null : null),
     [snapshot.selectedCueId, cueById],
   );
-  const canTake = Boolean(showId && show?.nextCueId && !takeShowMutation.isPending);
+  const canTake = Boolean(showId && (show?.nextCueId || snapshot.selectedCueId) && !takeShowMutation.isPending);
   const canReset = Boolean(showId && (show?.nextCueId || show?.currentCueId) && !resetShowMutation.isPending);
   const canMoveCueToNow = Boolean(selectedCue && !updateCueMutation.isPending);
 
@@ -653,13 +653,20 @@ function ShowWorkspaceContent() {
   }
 
   function handleTake() {
-    if (!showId || !show?.nextCueId || takeShowMutation.isPending) {
+    const targetCueId = show?.nextCueId ?? snapshot.selectedCueId!;
+
+    if (!showId || !targetCueId || takeShowMutation.isPending) {
       return;
     }
 
-    const nextCueIndex = orderedCueIds.indexOf(show.nextCueId);
-    pendingScrollCueIdRef.current = nextCueIndex >= 0 ? orderedCueIds[nextCueIndex + 1] ?? null : null;
-    takeShowMutation.mutate({ showId });
+    const targetCueIndex = orderedCueIds.indexOf(targetCueId);
+    pendingScrollCueIdRef.current = targetCueIndex >= 0 ? orderedCueIds[targetCueIndex + 1] ?? null : null;
+
+    if (show?.nextCueId) {
+      takeShowMutation.mutate({ showId });
+    } else {
+      setNextCueMutation.mutate({ showId, cueId: targetCueId });
+    }
   }
 
   function handleReset() {
@@ -798,10 +805,6 @@ function ShowWorkspaceContent() {
 
       if (event.code === "F12") {
         event.preventDefault();
-        if (!showId || !show?.nextCueId || takeShowMutation.isPending) {
-          return;
-        }
-
         handleTake();
         return;
       }
