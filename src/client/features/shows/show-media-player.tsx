@@ -60,11 +60,12 @@ interface ShowMediaPlayerProps {
   serverUrl: string;
   selectedMediaFileId: string | null;
   pauseRequested?: boolean;
+  currentTimeRequestedMs?: number;
   onCurrentTimeChange?: (currentTimeMs: number) => void;
   topSlot?: ReactNode;
 }
 
-export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, pauseRequested = false, onCurrentTimeChange, topSlot }: ShowMediaPlayerProps) {
+export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, pauseRequested = false, currentTimeRequestedMs, onCurrentTimeChange, topSlot }: ShowMediaPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [durationMs, setDurationMs] = useState(0);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
@@ -125,6 +126,20 @@ export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, pauseReq
     videoRef.current?.pause();
     setIsPlaying(false);
   }, [pauseRequested]);
+
+  useEffect(() => {
+    if (currentTimeRequestedMs === undefined) {
+      return;
+    }
+
+    const mediaElement = getActiveMediaElement();
+    if (!mediaElement) {
+      return;
+    }
+
+    const clampedTimeMs = clamp(currentTimeRequestedMs, 0, durationMs);
+    mediaElement.currentTime = clampedTimeMs / 1000;
+  }, [currentTimeRequestedMs, durationMs]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {

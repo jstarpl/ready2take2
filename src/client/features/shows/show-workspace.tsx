@@ -143,6 +143,7 @@ interface SortableCueRowProps {
   isSelected: boolean;
   onSelect: (cueId: string) => void;
   onRefChange: (cueId: string, element: HTMLElement | null) => void;
+  onDoubleClick: (cueId: string) => void;
 }
 
 interface ModalDialogProps {
@@ -282,6 +283,7 @@ function SortableCueRow({
   isSelected,
   onSelect,
   onRefChange,
+  onDoubleClick,
 }: SortableCueRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cue.id });
 
@@ -316,6 +318,7 @@ function SortableCueRow({
       data-cue-id={cue.id}
       style={style}
       onClick={() => onSelect(cue.id)}
+      onDoubleClick={() => onDoubleClick(cue.id)}
       className={`cursor-pointer grid items-start gap-3 border border-border/70 bg-background/65 p-3 transition-colors ${leftBorderClass} ${selectedClass}`}
     >
       <div className="flex items-start gap-2">
@@ -441,6 +444,7 @@ function ShowWorkspaceContent() {
   const addCueCommentRef = useRef<HTMLTextAreaElement | null>(null);
   const [cueCommentDrafts, setCueCommentDrafts] = useState<Record<string, string>>({});
   const [cueTrackValueDrafts, setCueTrackValueDrafts] = useState<Record<string, string>>({});
+  const [currentTimeRequest, setCurrentTimeRequest] = useState<number | undefined>(undefined);
   const [orderedCueIds, setOrderedCueIds] = useState<string[]>([]);
   const [deletingMediaFileId, setDeletingMediaFileId] = useState<string | null>(null);
   const [liveRecordingDialogTrackId, setLiveRecordingDialogTrackId] = useState<string>("");
@@ -1160,6 +1164,9 @@ function ShowWorkspaceContent() {
                         cueRefMapRef.current.delete(cueId);
                       }
                     }}
+                    onDoubleClick={(cueId) => {
+                      setCurrentTimeRequest(cueById.get(cueId)?.cueOffsetMs ?? undefined);
+                    }}
                   />
                 ))}
               </div>
@@ -1385,6 +1392,7 @@ function ShowWorkspaceContent() {
         serverUrl={SERVER_URL}
         selectedMediaFileId={snapshot.selectedMediaFileId}
         pauseRequested={snapshot.activeModal === "addCue"}
+        currentTimeRequestedMs={currentTimeRequest}
         onCurrentTimeChange={(ms) => (store.currentTimeMs = ms)}
         topSlot={snapshot.liveCueRecordingMode ? (() => {
           const liveTrackName = show.tracks.find((t) => t.id === snapshot.liveCueRecordingTrackId)?.name ?? "";
