@@ -1,8 +1,10 @@
 import { useMemo, useRef, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useSnapshot } from "valtio";
+import QRCode from "qrcode";
 import { trpc } from "@/client/lib/trpc";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/client/components/ui/card";
+import { Button } from "@/client/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/client/components/ui/card";
 import { cn, getContrastColor } from "@/client/lib/utils";
 import {
     CueListViewStoreContext,
@@ -12,6 +14,7 @@ import {
 } from "@/client/features/shows/cue-list-view-store";
 import { Cue } from "@/server/db/entities/Cue";
 import { Show } from "@/server/db/entities/Show";
+import { QrCodeIcon } from "lucide-react";
 
 function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
@@ -144,6 +147,9 @@ function CueListViewContent() {
     const splitterRef = useRef<HTMLDivElement | null>(null);
     const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
     const [nowMs, setNowMs] = useState(() => Date.now());
+    const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+    const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
+    const [qrCodeError, setQrCodeError] = useState<string | null>(null);
 
     const showQuery = trpc.show.getDetail.useQuery(
         { showId: showId ?? "" },
@@ -196,6 +202,40 @@ function CueListViewContent() {
     }, [snapshot.selectedTrackId, orderedCues]);
 
     const currentCue = orderedCues.find((c: any) => c.id === show?.currentCueId);
+    const shareUrl = useMemo(() => {
+        if (typeof window === "undefined") {
+            return "";
+        }
+        return window.location.href;
+    }, [snapshot.selectedTrackId, snapshot.selectedTechnicalIdentifier]);
+
+    useEffect(() => {
+        if (!isQrModalOpen || !shareUrl) {
+            return;
+        }
+
+        let cancelled = false;
+        setQrCodeError(null);
+        setQrCodeDataUrl("");
+
+        QRCode.toDataURL(shareUrl, { width: 320, margin: 2 })
+            .then((dataUrl) => {
+                if (cancelled) {
+                    return;
+                }
+                setQrCodeDataUrl(dataUrl);
+            })
+            .catch(() => {
+                if (cancelled) {
+                    return;
+                }
+                setQrCodeError("Could not generate QR code.");
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isQrModalOpen, shareUrl]);
 
     useEffect(() => {
         if (!show?.currentCueTakenAt || !currentCue || currentCue.cueOffsetMs === null) {
@@ -426,7 +466,7 @@ function CueListViewContent() {
                             <select
                                 value={snapshot.selectedTrackId || ""}
                                 onChange={(e) => handleSelectedTrackChange(e.target.value || undefined)}
-                                className="w-full rounded border border-border/70 bg-background px-3 py-2 text-sm"
+                                className="w-full border border-border/70 bg-background px-3 py-2 text-sm"
                             >
                                 <option value="">— Select track —</option>
                                 {safeShow.tracks.map((track: any) => (
@@ -442,19 +482,30 @@ function CueListViewContent() {
                             <label className="text-xs font-medium text-muted-foreground mb-1 block">
                                 Value
                             </label>
-                            <select
-                                value={snapshot.selectedTechnicalIdentifier || ""}
-                                onChange={(e) => handleSelectedTechnicalIdentifierChange(e.target.value || undefined)}
-                                disabled={!snapshot.selectedTrackId}
-                                className="w-full rounded border border-border/70 bg-background px-3 py-2 text-sm disabled:opacity-50"
-                            >
-                                <option value="">— Select value —</option>
-                                {selectedTrackTechnicalIdentifiers.map((identifier) => (
-                                    <option key={identifier} value={identifier}>
-                                        {identifier}
-                                    </option>
-                                ))}
-                            </select>
+                            <div className="flex gap-2">
+                                <select
+                                    value={snapshot.selectedTechnicalIdentifier || ""}
+                                    onChange={(e) => handleSelectedTechnicalIdentifierChange(e.target.value || undefined)}
+                                    disabled={!snapshot.selectedTrackId}
+                                    className="w-full border border-border/70 bg-background px-3 py-2 text-sm disabled:opacity-50"
+                                >
+                                    <option value="">— Select value —</option>
+                                    {selectedTrackTechnicalIdentifiers.map((identifier) => (
+                                        <option key={identifier} value={identifier}>
+                                            {identifier}
+                                        </option>
+                                    ))}
+                                </select>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="shrink-0"
+                                    onClick={() => setIsQrModalOpen(true)}
+                                >
+                                    <QrCodeIcon size={20} />
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -499,6 +550,38 @@ function CueListViewContent() {
                     )}
                 </div>
             </div>
+
+            {isQrModalOpen ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
+                    <Card className="w-full max-w-sm bg-card/95">
+                        <CardHeader className="flex flex-row items-start justify-between gap-4">
+                            <div>
+                                <CardTitle>Open on mobile</CardTitle>
+                                <CardDescription>Scan this QR code to open this exact cue list view.</CardDescription>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={() => setIsQrModalOpen(false)}>
+                                Close
+                            </Button>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-col items-center gap-3">
+                                {qrCodeError ? (
+                                    <div className="text-sm text-destructive">{qrCodeError}</div>
+                                ) : qrCodeDataUrl ? (
+                                    <img
+                                        src={qrCodeDataUrl}
+                                        alt="QR code for current cue list URL"
+                                        className="h-64 w-64 rounded border border-border/70 bg-white p-2"
+                                    />
+                                ) : (
+                                    <div className="text-sm text-muted-foreground">Generating QR code…</div>
+                                )}
+                                <div className="w-full break-all text-xs text-muted-foreground">{shareUrl}</div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            ) : null}
         </div>
     );
 }
