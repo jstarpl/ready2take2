@@ -2,10 +2,10 @@ import { appDataSource } from "../db/data-source";
 import { Cue } from "../db/entities/Cue";
 import { CueTrackValue } from "../db/entities/CueTrackValue";
 import { Show } from "../db/entities/Show";
-import { Track } from "../db/entities/Track";
+import { Track, type TrackType } from "../db/entities/Track";
 import { showEvents } from "../realtime/show-events";
 
-export async function createTrackAndCueTrackValues(showId: string, name: string) {
+export async function createTrackAndCueTrackValues(showId: string, name: string, type: TrackType = "custom") {
   return appDataSource.transaction(async (manager) => {
     await manager.findOneByOrFail(Show, { id: showId });
 
@@ -14,7 +14,7 @@ export async function createTrackAndCueTrackValues(showId: string, name: string)
     const cueTrackValueRepository = manager.getRepository(CueTrackValue);
 
     const position = await trackRepository.count({ where: { showId } });
-    const track = trackRepository.create({ showId, name, position });
+    const track = trackRepository.create({ showId, name, type, position });
     const savedTrack = await trackRepository.save(track);
 
     const cues = await cueRepository.findBy({ showId });

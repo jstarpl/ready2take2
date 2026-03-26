@@ -4,7 +4,7 @@ import { createTrackAndCueTrackValues, deleteTrack, reorderTracks, updateTrack }
 
 export const trackRouter = createTRPCRouter({
   create: protectedProcedure.input(trackCreateSchema).mutation(async ({ input }) => {
-    return createTrackAndCueTrackValues(input.showId, input.name);
+    return createTrackAndCueTrackValues(input.showId, input.name, input.type);
   }),
   delete: protectedProcedure.input(trackDeleteSchema).mutation(async ({ input }) => {
     return deleteTrack(input.id);

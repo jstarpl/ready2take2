@@ -13,6 +13,7 @@ export interface ShowWorkspaceState {
 
   // Add Track form
   newTrackName: string;
+  newTrackType: "custom" | "camera";
 
   // Modal state
   activeModal: "addCue" | "addTrack" | "removeTrack" | "media" | null;
@@ -38,6 +39,7 @@ export function createShowWorkspaceStore(): ShowWorkspaceState {
     newCueOffsetMs: 0,
     newCueCueId: "1",
     newTrackName: "",
+    newTrackType: "custom",
     activeModal: null,
     selectedCueId: null,
     selectedUpload: null,
@@ -70,6 +72,7 @@ export function resetAddCueForm(store: ShowWorkspaceState, nextCueId?: string): 
 
 export function resetAddTrackForm(store: ShowWorkspaceState): void {
   store.newTrackName = "";
+  store.newTrackType = "custom";
 }
 
 export function resetUploadState(store: ShowWorkspaceState): void {
