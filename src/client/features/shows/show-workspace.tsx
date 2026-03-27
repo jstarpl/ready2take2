@@ -581,6 +581,20 @@ function ShowWorkspaceContent() {
       }
     },
   });
+  const moveNextForwardMutation = trpc.show.moveNextForward.useMutation({
+    onSuccess: async () => {
+      if (showId) {
+        await utils.show.getDetail.invalidate({ showId });
+      }
+    },
+  });
+  const moveNextBackwardMutation = trpc.show.moveNextBackward.useMutation({
+    onSuccess: async () => {
+      if (showId) {
+        await utils.show.getDetail.invalidate({ showId });
+      }
+    },
+  });
   const takeShowMutation = trpc.show.take.useMutation({
     onSuccess: async () => {
       if (showId) {
@@ -660,8 +674,8 @@ function ShowWorkspaceContent() {
     () => (show?.nextCueId ? orderedCueIds.indexOf(show.nextCueId) : -1),
     [show?.nextCueId, orderedCueIds]
   );
-  const canMoveNextForward = Boolean(show?.nextCueId && nextCueOrderIndex >= 0 && nextCueOrderIndex < orderedCueIds.length - 1 && !setNextCueMutation.isPending);
-  const canMoveNextBackward = Boolean(show?.nextCueId && nextCueOrderIndex > 0 && !setNextCueMutation.isPending);
+  const canMoveNextForward = Boolean(show?.nextCueId && nextCueOrderIndex >= 0 && nextCueOrderIndex < orderedCueIds.length - 1 && !moveNextForwardMutation.isPending);
+  const canMoveNextBackward = Boolean(show?.nextCueId && nextCueOrderIndex > 0 && !moveNextBackwardMutation.isPending);
   const canMoveCueToNow = Boolean(selectedCue && !updateCueMutation.isPending);
 
   const nextCueId = useMemo(() => {
@@ -716,18 +730,14 @@ function ShowWorkspaceContent() {
     if (!showId || !show?.nextCueId || !canMoveNextForward) {
       return;
     }
-    if (nextCueOrderIndex + 1 >= orderedCueIds.length) return;
-    const newNextCueId = orderedCueIds[nextCueOrderIndex + 1];
-    setNextCueMutation.mutate({ showId, cueId: newNextCueId });
+    moveNextForwardMutation.mutate({ showId });
   }
 
   function handleMoveNextBackward() {
     if (!showId || !show?.nextCueId || !canMoveNextBackward) {
       return;
     }
-    if (nextCueOrderIndex - 1 < 0) return;
-    const newNextCueId = orderedCueIds[nextCueOrderIndex - 1];
-    setNextCueMutation.mutate({ showId, cueId: newNextCueId });
+    moveNextBackwardMutation.mutate({ showId });
   }
 
   function handleMoveCueToNow() {

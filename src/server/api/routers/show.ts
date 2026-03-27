@@ -4,7 +4,7 @@ import { projectIdSchema, showCreateSchema, showCuePointerSchema, showIdSchema, 
 import { appDataSource } from "../../db/data-source";
 import { Show } from "../../db/entities/Show";
 import { showEvents } from "../../realtime/show-events";
-import { assignShowCuePointer, createShowWithDefaultTrack, deleteShow, resetShow, reorderShows, takeShow, updateShowDetails } from "../../services/show-service";
+import { assignShowCuePointer, createShowWithDefaultTrack, deleteShow, moveNextCueBackward, moveNextCueForward, resetShow, reorderShows, takeShow, updateShowDetails } from "../../services/show-service";
 import type { ShowEvent } from "@/shared/types/domain";
 
 export const showRouter = createTRPCRouter({
@@ -54,6 +54,12 @@ export const showRouter = createTRPCRouter({
   }),
   reset: protectedProcedure.input(showIdSchema).mutation(async ({ input }) => {
     return resetShow(input.showId);
+  }),
+  moveNextForward: protectedProcedure.input(showIdSchema).mutation(async ({ input }) => {
+    return moveNextCueForward(input.showId);
+  }),
+  moveNextBackward: protectedProcedure.input(showIdSchema).mutation(async ({ input }) => {
+    return moveNextCueBackward(input.showId);
   }),
   subscribe: protectedProcedure.input(showIdSchema).subscription(({ input }) => {
     return observable<ShowEvent>((emit) => {

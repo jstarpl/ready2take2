@@ -200,6 +200,59 @@ export async function resetShow(showId: string) {
   });
 }
 
+async function moveNextCue(showId: string, direction: "forward" | "backward") {
+  return appDataSource.transaction(async (manager) => {
+    const showRepository = manager.getRepository(Show);
+
+    const show = await showRepository.findOne({
+      where: { id: showId },
+      relations: { cues: true },
+      order: { cues: { orderKey: "ASC" } },
+    });
+
+    if (!show) {
+      throw new Error("Show not found.");
+    }
+
+    if (!show.nextCueId) {
+      throw new Error("No next cue is set for this show.");
+    }
+
+    const nextCueIndex = show.cues.findIndex((cue) => cue.id === show.nextCueId);
+
+    if (nextCueIndex === -1) {
+      throw new Error("Next cue does not belong to the selected show.");
+    }
+
+    if (direction === "forward") {
+      if (nextCueIndex >= show.cues.length - 1) {
+        throw new Error("Next cue is already the last cue in the show.");
+      }
+      show.nextCueId = show.cues[nextCueIndex + 1].id;
+    } else {
+      if (nextCueIndex === 0) {
+        throw new Error("Next cue is already the first cue in the show.");
+      }
+      show.nextCueId = show.cues[nextCueIndex - 1].id;
+    }
+
+    const savedShow = await showRepository.save(show);
+
+    showEvents.publish({ type: "show.nextCueChanged", showId: savedShow.id, entityId: savedShow.nextCueId ?? undefined });
+    triggerNextCueVideoMixerAutomation(savedShow.id);
+
+    return savedShow;
+  });
+}
+
+export async function moveNextCueForward(showId: string) {
+  return moveNextCue(showId, "forward");
+}
+
+export async function moveNextCueBackward(showId: string) {
+  return moveNextCue(showId, "backward");
+}
+
 export async function updateShowDetails(showId: string, name: string, status: Show["status"]) {
   const showRepository = appDataSource.getRepository(Show);
   const show = await showRepository.findOneByOrFail({ id: showId });
