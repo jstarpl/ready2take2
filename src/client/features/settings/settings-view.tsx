@@ -6,7 +6,7 @@ import { Input } from "@/client/components/ui/input";
 import { Trash2, Lock } from "lucide-react";
 import { cn } from "@/client/lib/utils";
 
-type VideoMixerMode = "none" | "vmix" | "atem";
+type VideoMixerMode = "none" | "vmix" | "atem" | "companion-osc";
 
 export function SettingsView() {
   const utils = trpc.useUtils();
@@ -40,6 +40,8 @@ export function SettingsView() {
       setAtemHost(settings.atemHost);
       setAtemPort(String(settings.atemPort));
       setAtemMe(String(settings.atemMe + 1));
+      setCompanionOscHost(settings.companionOscHost);
+      setCompanionOscPort(String(settings.companionOscPort));
       await Promise.all([utils.videoMixerSetting.get.invalidate(), utils.videoMixerSetting.getStatus.invalidate()]);
     },
   });
@@ -130,6 +132,8 @@ export function SettingsView() {
   const [atemHost, setAtemHost] = useState("");
   const [atemPort, setAtemPort] = useState("9910");
   const [atemMe, setAtemMe] = useState("0");
+  const [companionOscHost, setCompanionOscHost] = useState("");
+  const [companionOscPort, setCompanionOscPort] = useState("12321");
   const [videoMixerTestStatus, setVideoMixerTestStatus] = useState<string | null>(null);
   const [videoMixerTestError, setVideoMixerTestError] = useState<string | null>(null);
 
@@ -170,6 +174,8 @@ export function SettingsView() {
     setAtemHost(settings.atemHost);
     setAtemPort(String(settings.atemPort));
     setAtemMe(String(settings.atemMe + 1));
+    setCompanionOscHost(settings.companionOscHost);
+    setCompanionOscPort(String(settings.companionOscPort));
   }, [videoMixerSettingsQuery.data]);
 
   // Show password change modal when the page loads
@@ -202,10 +208,12 @@ export function SettingsView() {
     const parsedVmixPort = Number.parseInt(vmixPort, 10);
     const parsedAtemPort = Number.parseInt(atemPort, 10);
     const parsedAtemMe = Number.parseInt(atemMe, 10) - 1;
+    const parsedCompanionOscPort = Number.parseInt(companionOscPort, 10);
 
     if (
       Number.isNaN(parsedVmixPort) ||
       Number.isNaN(parsedAtemPort) ||
+      Number.isNaN(parsedCompanionOscPort) ||
       updateVideoMixerSettingsMutation.isPending
     ) {
       return;
@@ -218,6 +226,8 @@ export function SettingsView() {
       atemHost,
       atemPort: parsedAtemPort,
       atemMe: parsedAtemMe || null,
+      companionOscHost,
+      companionOscPort: parsedCompanionOscPort,
     });
   }
 
@@ -477,6 +487,7 @@ export function SettingsView() {
                   <option value="none">None</option>
                   <option value="vmix">vMix</option>
                   <option value="atem">ATEM</option>
+                  <option value="companion-osc">Companion OSC</option>
                 </select>
               </div>
 
@@ -501,11 +512,21 @@ export function SettingsView() {
                   <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ATEM M/E</label>
                   <Input value={atemMe} onChange={(event) => setAtemMe(event.target.value)} placeholder="eg. 1" />
                 </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Companion OSC host</label>
+                  <Input value={companionOscHost} onChange={(event) => setCompanionOscHost(event.target.value)} placeholder="eg. 127.0.0.1" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Companion OSC port</label>
+                  <Input value={companionOscPort} onChange={(event) => setCompanionOscPort(event.target.value)} placeholder="eg. 12321" />
+                </div>
               </div>
 
               <div className="rounded border border-border/70 bg-background/40 p-3 text-sm text-muted-foreground">
                 vMix uses the technical identifier as the preview input selector. ATEM trims the identifier and converts
-                it to a number before selecting preview input.
+                it to a number before selecting preview input. Companion OSC uses the technical identifier in{" "}
+                <span className="font-mono">page/row/column</span> format to press a button via the{" "}
+                <span className="font-mono">/location/&lt;page&gt;/&lt;row&gt;/&lt;column&gt;/press</span> OSC address.
               </div>
 
               <div className="rounded border border-border/70 bg-background/40 p-3 text-sm">
@@ -563,7 +584,7 @@ export function SettingsView() {
               <Button
                 type="submit"
                 variant="outline"
-                disabled={testVideoMixerPreviewMutation.isPending || videoMixerMode === "none"}
+                disabled={testVideoMixerPreviewMutation.isPending || videoMixerMode === "none" || videoMixerMode === "companion-osc"}
               >
                 Test
               </Button>
@@ -778,7 +799,7 @@ function renderVideoMixerConnectionStatus(
   }
 
   const endpoint = status.host ? `${status.host}${status.port ? `:${status.port}` : ""}` : "not configured";
-  const label = status.mode === "vmix" ? "vMix" : "ATEM";
+  const label = status.mode === "vmix" ? "vMix" : status.mode === "atem" ? "ATEM" : "Companion OSC";
 
   if (status.state === "connected") {
     return `${label} connected at ${endpoint}.`;

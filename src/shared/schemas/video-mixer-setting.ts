@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const videoMixerModeSchema = z.enum(["none", "vmix", "atem"]);
+export const videoMixerModeSchema = z.enum(["none", "vmix", "atem", "companion-osc"]);
 
 const hostSchema = z.string().trim().max(255);
 const portSchema = z.number().int().min(1).max(65535);
@@ -13,6 +13,8 @@ export const videoMixerSettingsSchema = z.object({
   atemHost: hostSchema,
   atemPort: portSchema,
   atemMe: atemMeSchema,
+  companionOscHost: hostSchema,
+  companionOscPort: portSchema,
 });
 
 export const videoMixerSettingsUpdateSchema = videoMixerSettingsSchema.superRefine((value, context) => {
@@ -29,6 +31,14 @@ export const videoMixerSettingsUpdateSchema = videoMixerSettingsSchema.superRefi
       code: z.ZodIssueCode.custom,
       path: ["atemHost"],
       message: "ATEM host is required when the ATEM integration is active.",
+    });
+  }
+
+  if (value.mode === "companion-osc" && value.companionOscHost.length === 0) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["companionOscHost"],
+      message: "Companion OSC host is required when the Companion OSC integration is active.",
     });
   }
 });
