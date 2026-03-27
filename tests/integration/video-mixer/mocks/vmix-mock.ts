@@ -22,6 +22,12 @@ export class MockVmixConnection extends EventEmitter {
   connect(host: string, port: number) {
     this.host = host;
     this.port = port;
+    if (mockVmixState.autoConnectOnConnectCall) {
+      this.simulateConnect();
+    }
+  }
+
+  simulateConnect() {
     this.isConnected = true;
     this.emit("connect");
   }
@@ -38,7 +44,9 @@ export class MockVmixConnection extends EventEmitter {
 
 export const mockVmixState = {
   instances: [] as MockVmixConnection[],
+  autoConnectOnConnectCall: true,
   reset() {
     this.instances.length = 0;
+    this.autoConnectOnConnectCall = true;
   },
 };
