@@ -16,6 +16,8 @@ const DEFAULT_VMIX_PORT = 8099;
 const DEFAULT_ATEM_PORT = 9910;
 const DEFAULT_ATEM_ME = 0;
 const DEFAULT_COMPANION_OSC_PORT = 12321;
+const DEFAULT_COMPANION_OSC_PAGE = 1;
+const DEFAULT_COMPANION_OSC_PAGE_WIDTH = 8;
 const VMIX_CONNECT_TIMEOUT_MS = 5000;
 const ATEM_CONNECT_TIMEOUT_MS = 5000;
 const MIXER_TEST_DELAY = 1000;
@@ -52,6 +54,8 @@ export type VideoMixerSettingsSnapshot = {
   atemMe: number;
   companionOscHost: string;
   companionOscPort: number;
+  companionOscPage: number;
+  companionOscPageWidth: number;
 };
 
 export type VideoMixerPreviewTestResult = {
@@ -82,6 +86,8 @@ export function getDefaultVideoMixerSettings(): VideoMixerSettingsSnapshot {
     atemMe: DEFAULT_ATEM_ME,
     companionOscHost: "",
     companionOscPort: DEFAULT_COMPANION_OSC_PORT,
+    companionOscPage: DEFAULT_COMPANION_OSC_PAGE,
+    companionOscPageWidth: DEFAULT_COMPANION_OSC_PAGE_WIDTH,
   };
 }
 
@@ -102,6 +108,8 @@ export async function getVideoMixerSettings(): Promise<VideoMixerSettingsSnapsho
     atemMe: existing.atemMe ?? DEFAULT_ATEM_ME,
     companionOscHost: existing.companionOscHost ?? "",
     companionOscPort: existing.companionOscPort ?? DEFAULT_COMPANION_OSC_PORT,
+    companionOscPage: existing.companionOscPage ?? DEFAULT_COMPANION_OSC_PAGE,
+    companionOscPageWidth: existing.companionOscPageWidth ?? DEFAULT_COMPANION_OSC_PAGE_WIDTH,
   };
 }
 
@@ -118,6 +126,8 @@ export async function updateVideoMixerSettings(settings: Omit<VideoMixerSettings
         atemMe: existing.atemMe ?? DEFAULT_ATEM_ME,
         companionOscHost: existing.companionOscHost ?? "",
         companionOscPort: existing.companionOscPort ?? DEFAULT_COMPANION_OSC_PORT,
+        companionOscPage: existing.companionOscPage ?? DEFAULT_COMPANION_OSC_PAGE,
+        companionOscPageWidth: existing.companionOscPageWidth ?? DEFAULT_COMPANION_OSC_PAGE_WIDTH,
       }
     : getDefaultVideoMixerSettings();
 
@@ -130,6 +140,8 @@ export async function updateVideoMixerSettings(settings: Omit<VideoMixerSettings
   entity.atemMe = settings.atemMe;
   entity.companionOscHost = settings.companionOscHost;
   entity.companionOscPort = settings.companionOscPort;
+  entity.companionOscPage = settings.companionOscPage;
+  entity.companionOscPageWidth = settings.companionOscPageWidth;
 
   await repository.save(entity);
 
@@ -630,17 +642,15 @@ async function sendPreviewToCompanionOsc(
     return;
   }
 
-  const parts = resolvedIdentifier.technicalIdentifier.trim().split("/");
-  if (parts.length !== 3) {
-    logger.warn`Skipping Companion OSC preview update because technical identifier '${resolvedIdentifier.technicalIdentifier}' is not in page/row/column format.`;
+  const identifier = Number.parseInt(resolvedIdentifier.technicalIdentifier.trim(), 10);
+  if (Number.isNaN(identifier)) {
+    logger.warn`Skipping Companion OSC preview update because technical identifier '${resolvedIdentifier.technicalIdentifier}' is not a valid integer.`;
     return;
   }
 
-  const [page, row, column] = parts.map((part) => Number.parseInt(part, 10));
-  if (Number.isNaN(page) || Number.isNaN(row) || Number.isNaN(column)) {
-    logger.warn`Skipping Companion OSC preview update because technical identifier '${resolvedIdentifier.technicalIdentifier}' contains non-integer values.`;
-    return;
-  }
+  const page = settings.companionOscPage;
+  const row = Math.floor(identifier / settings.companionOscPageWidth);
+  const column = (identifier % settings.companionOscPageWidth) - 1;
 
   const address = `/location/${page}/${row}/${column}/press`;
   const client = new OscClient(settings.companionOscHost, settings.companionOscPort);

@@ -13,6 +13,8 @@ export class VideoMixerSetting extends BaseRecord {
   atemMe!: number | null;
   companionOscHost!: string | null;
   companionOscPort!: number | null;
+  companionOscPage!: number | null;
+  companionOscPageWidth!: number | null;
 }
 
 export const VideoMixerSettingSchema = new EntitySchema<VideoMixerSetting>({
@@ -32,5 +34,7 @@ export const VideoMixerSettingSchema = new EntitySchema<VideoMixerSetting>({
     atemMe: { type: Number, nullable: true },
     companionOscHost: { type: String, nullable: true },
     companionOscPort: { type: Number, nullable: true },
+    companionOscPage: { type: Number, nullable: true },
+    companionOscPageWidth: { type: Number, nullable: true },
   },
 });

@@ -5,6 +5,8 @@ export const videoMixerModeSchema = z.enum(["none", "vmix", "atem", "companion-o
 const hostSchema = z.string().trim().max(255);
 const portSchema = z.number().int().min(1).max(65535);
 const atemMeSchema = z.number().int().min(0).max(255).nullable();
+const companionOscPageSchema = z.number().int().min(1);
+const companionOscPageWidthSchema = z.number().int().min(1);
 
 export const videoMixerSettingsSchema = z.object({
   mode: videoMixerModeSchema,
@@ -15,6 +17,8 @@ export const videoMixerSettingsSchema = z.object({
   atemMe: atemMeSchema,
   companionOscHost: hostSchema,
   companionOscPort: portSchema,
+  companionOscPage: companionOscPageSchema,
+  companionOscPageWidth: companionOscPageWidthSchema,
 });
 
 export const videoMixerSettingsUpdateSchema = videoMixerSettingsSchema.superRefine((value, context) => {
