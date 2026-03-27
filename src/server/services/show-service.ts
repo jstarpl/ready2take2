@@ -1,3 +1,4 @@
+import { Not } from "typeorm";
 import { appDataSource } from "../db/data-source";
 import { Cue } from "../db/entities/Cue";
 import { Project } from "../db/entities/Project";
@@ -70,35 +71,58 @@ export async function reorderShows(projectId: string, showIds: string[]) {
 }
 
 export async function assignShowCuePointer(showId: string, cueId: string | null, field: "currentCueId" | "nextCueId") {
-  const showRepository = appDataSource.getRepository(Show);
-  const cueRepository = appDataSource.getRepository(Cue);
+  return appDataSource.transaction(async (manager) => {
+    const showRepository = manager.getRepository(Show);
+    const cueRepository = manager.getRepository(Cue);
 
-  const show = await showRepository.findOneByOrFail({ id: showId });
+    const show = await showRepository.findOneByOrFail({ id: showId });
 
-  if (cueId) {
-    const cue = await cueRepository.findOneByOrFail({ id: cueId });
-    if (cue.showId !== show.id) {
-      throw new Error("Cue does not belong to the selected show.");
+    if (cueId) {
+      const cue = await cueRepository.findOneByOrFail({ id: cueId });
+      if (cue.showId !== show.id) {
+        throw new Error("Cue does not belong to the selected show.");
+      }
     }
-  }
 
-  show[field] = cueId;
-  if (field === "currentCueId") {
-    show.currentCueTakenAt = cueId ? new Date() : null;
-  }
-  await showRepository.save(show);
+    const eventType = field === "currentCueId" ? "show.currentCueChanged" : "show.nextCueChanged";
+    const clearedShowIds: string[] = [];
 
-  showEvents.publish({
-    type: field === "currentCueId" ? "show.currentCueChanged" : "show.nextCueChanged",
-    showId: show.id,
-    entityId: cueId ?? show.id,
+    if (cueId !== null) {
+      const otherShows = await showRepository.findBy({ id: Not(showId) });
+      const otherShowsToUpdate = otherShows.filter((s) => s[field] !== null);
+      if (otherShowsToUpdate.length > 0) {
+        for (const otherShow of otherShowsToUpdate) {
+          otherShow[field] = null;
+          if (field === "currentCueId") {
+            otherShow.currentCueTakenAt = null;
+          }
+        }
+        await showRepository.save(otherShowsToUpdate);
+        clearedShowIds.push(...otherShowsToUpdate.map((s) => s.id));
+      }
+    }
+
+    show[field] = cueId;
+    if (field === "currentCueId") {
+      show.currentCueTakenAt = cueId ? new Date() : null;
+    }
+    await showRepository.save(show);
+
+    for (const clearedShowId of clearedShowIds) {
+      showEvents.publish({ type: eventType, showId: clearedShowId, entityId: undefined });
+    }
+    showEvents.publish({
+      type: eventType,
+      showId: show.id,
+      entityId: cueId ?? show.id,
+    });
+
+    if (field === "nextCueId") {
+      triggerNextCueVideoMixerAutomation(show.id);
+    }
+
+    return show;
   });
-
-  if (field === "nextCueId") {
-    triggerNextCueVideoMixerAutomation(show.id);
-  }
-
-  return show;
 }
 
 export async function takeShow(showId: string) {
@@ -134,11 +158,45 @@ export async function takeShow(showId: string) {
     const currentCueId = show.cues[nextCueIndex]?.id ?? null;
     const followingCueId = show.cues[nextCueIndex + 1]?.id ?? null;
 
+    // Clear currentCueId in all other shows (we always set a new currentCueId here).
+    // Clear nextCueId in all other shows only when we are assigning a new non-null followingCueId.
+    const otherShows = await showRepository.findBy({ id: Not(showId) });
+    const otherShowsWithCurrentCue: Show[] = [];
+    const otherShowsWithNextCue: Show[] = [];
+    const otherShowsToSave: Show[] = [];
+
+    for (const otherShow of otherShows) {
+      let changed = false;
+      if (otherShow.currentCueId !== null) {
+        otherShow.currentCueId = null;
+        otherShow.currentCueTakenAt = null;
+        otherShowsWithCurrentCue.push(otherShow);
+        changed = true;
+      }
+      if (followingCueId !== null && otherShow.nextCueId !== null) {
+        otherShow.nextCueId = null;
+        otherShowsWithNextCue.push(otherShow);
+        changed = true;
+      }
+      if (changed) otherShowsToSave.push(otherShow);
+    }
+
+    if (otherShowsToSave.length > 0) {
+      await showRepository.save(otherShowsToSave);
+    }
+
     show.currentCueId = currentCueId;
     show.currentCueTakenAt = currentCueId ? new Date() : null;
     show.nextCueId = followingCueId;
 
     const savedShow = await showRepository.save(show);
+
+    for (const otherShow of otherShowsWithCurrentCue) {
+      showEvents.publish({ type: "show.currentCueChanged", showId: otherShow.id, entityId: undefined });
+    }
+    for (const otherShow of otherShowsWithNextCue) {
+      showEvents.publish({ type: "show.nextCueChanged", showId: otherShow.id, entityId: undefined });
+    }
 
     showEvents.publish({
       type: "show.currentCueChanged",
