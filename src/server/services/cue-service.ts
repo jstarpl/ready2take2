@@ -5,7 +5,7 @@ import { Show } from "../db/entities/Show";
 import { Track } from "../db/entities/Track";
 import { showEvents } from "../realtime/show-events";
 
-const REQUIRED_CUE_IMPORT_HEADERS = ["Marker Name", "Description", "In", "Out", "Duration", "Marker Type"] as const;
+const REQUIRED_CUE_IMPORT_HEADERS = ["Marker Name", "In"] as const;
 
 interface ParsedCueImportRow {
   comment: string;

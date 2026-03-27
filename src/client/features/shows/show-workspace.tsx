@@ -1077,12 +1077,6 @@ function ShowWorkspaceContent() {
                       Add cue
                       <MenubarShortcut>Ctrl+Alt+Space</MenubarShortcut>
                     </MenubarItem>
-                    <MenubarItem onSelect={() => {
-                      setCueImportError(null);
-                      store.activeModal = "importCues";
-                    }}>
-                      Import cues from CSV
-                    </MenubarItem>
                     <MenubarItem disabled={!canMoveCueToNow} onSelect={handleMoveCueToNow}>
                       Move cue to now
                       <MenubarShortcut>Ctrl+M</MenubarShortcut>
@@ -1109,6 +1103,13 @@ function ShowWorkspaceContent() {
                       onSelect={() => showId && resetCueIdsMutation.mutate({ showId })}
                     >
                       Reset Cue IDs
+                    </MenubarItem>
+                    <MenubarSeparator />
+                    <MenubarItem onSelect={() => {
+                      setCueImportError(null);
+                      store.activeModal = "importCues";
+                    }}>
+                      Import cues from CSV
                     </MenubarItem>
                   </MenubarContent>
                 </MenubarMenu>
@@ -1331,7 +1332,7 @@ function ShowWorkspaceContent() {
             }}
           >
             <div className="space-y-2 text-sm text-muted-foreground">
-              <div>Required CSV columns: Marker Name, Description, In, Out, Duration, Marker Type.</div>
+              <div>Required CSV columns: Marker Name, In.</div>
               <div>Marker Name becomes the cue comment. In becomes the cue offset.</div>
             </div>
             <input
