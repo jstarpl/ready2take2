@@ -1,0 +1,5 @@
+onlyBuiltDependencies:
+  - '@julusian/freetype2'
+  - argon2
+  - esbuild
+  - sqlite3
