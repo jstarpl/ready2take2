@@ -12,7 +12,7 @@ import { appDataSource } from "./db/data-source";
 import { appRouter } from "./api/root";
 import { createContext } from "./api/trpc";
 import { SESSION_COOKIE_NAME } from "./auth/constants";
-import { getSessionUser } from "./services/auth-service";
+import { deleteExpiredSessions, getSessionUser } from "./services/auth-service";
 import { createShowMediaFile, deleteShowMediaFile, ensureUploadDirectories, uploadsTempDirectory, uploadsRootDirectory } from "./services/show-media-service";
 import { seedInitialData } from "./services/seed-service";
 import { reconnectVideoMixerConnections, shutdownVideoMixerConnections } from "./services/video-mixer-service";
@@ -21,6 +21,7 @@ import { banner, configureLogger, getLogger } from "./lib/logger";
 const logger = getLogger('server');
 const PORT = Number(process.env.PORT) || 3000;
 const BOOTSTRAP_MODE = process.env.BOOTSTRAP_MODE === "docker" ? "docker" : "default";
+const SESSION_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 const clientDistDirectory = path.resolve(process.cwd(), "dist", "client");
 const clientRouteMatcher = /^(?!\/(?:api|trpc|uploads)(?:\/|$)|\/health$).*/;
 
@@ -30,6 +31,22 @@ async function bootstrap() {
   ensureUploadDirectories();
   await appDataSource.initialize();
   await seedInitialData();
+
+  const runExpiredSessionCleanup = async () => {
+    const removedSessionsCount = await deleteExpiredSessions();
+    if (removedSessionsCount > 0) {
+      logger.info`Removed ${removedSessionsCount} expired sessions`;
+    }
+  };
+
+  await runExpiredSessionCleanup();
+  const expiredSessionsCleanupTimer = setInterval(() => {
+    void runExpiredSessionCleanup().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      logger.error`Failed to delete expired sessions: ${message}`;
+    });
+  }, SESSION_CLEANUP_INTERVAL_MS);
+  expiredSessionsCleanupTimer.unref();
 
   const app = express();
   if (process.env.NODE_ENV !== "production") {
@@ -172,6 +189,7 @@ async function bootstrap() {
       logger.error`Failed during shutdown cleanup: ${message}`;
     });
 
+    clearInterval(expiredSessionsCleanupTimer);
     wss.close();
     server.close(() => {
       process.exit(0);
