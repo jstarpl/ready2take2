@@ -3,14 +3,46 @@ import { createShowFixture } from "./fixtures/test-data";
 import { MockVmixConnection, mockVmixState } from "./mocks/vmix-mock";
 import { MockAtem, MockAtemConnectionStatus, mockAtemState } from "./mocks/atem-mock";
 
+type MockOscClientInstance = {
+  host: string;
+  port: number;
+  sendCalls: string[];
+  closeCalls: number;
+};
+
+const mockOscState = {
+  instances: [] as MockOscClientInstance[],
+  reset() {
+    this.instances.length = 0;
+  },
+};
+
+class MockOscClient {
+  private instance: MockOscClientInstance;
+  constructor(host: string, port: number) {
+    this.instance = { host, port, sendCalls: [], closeCalls: 0 };
+    mockOscState.instances.push(this.instance);
+  }
+  async send(address: string) {
+    this.instance.sendCalls.push(address);
+  }
+  async close() {
+    this.instance.closeCalls++;
+  }
+}
+
 type VideoMixerSettingRecord = {
   key: string;
-  mode: "none" | "vmix" | "atem";
+  mode: "none" | "vmix" | "atem" | "companion-osc";
   vmixHost: string;
   vmixPort: number;
   atemHost: string;
   atemPort: number;
   atemMe: number | null;
+  companionOscHost: string;
+  companionOscPort: number;
+  companionOscPage: number;
+  companionOscPageWidth: number;
 };
 
 type ShowFixtureRecord = Omit<ReturnType<typeof createShowFixture>, "nextCueId"> & {
@@ -30,6 +62,10 @@ const mockDbState: {
 };
 
 const takeShowMock = vi.fn(async () => undefined);
+
+vi.mock("node-osc", () => ({
+  Client: MockOscClient,
+}));
 
 vi.mock("node-vmix", () => ({
   ConnectionTCP: MockVmixConnection,
@@ -71,6 +107,10 @@ vi.mock("../../../src/server/db/data-source", () => ({
             atemHost: "",
             atemPort: 9910,
             atemMe: 0,
+            companionOscHost: "",
+            companionOscPort: 12321,
+            companionOscPage: 1,
+            companionOscPageWidth: 8,
           }),
           save: async (record: VideoMixerSettingRecord) => {
             mockDbState.settings = {
@@ -164,6 +204,7 @@ describe("video mixer guardrails integration", () => {
 
     mockVmixState.reset();
     mockAtemState.reset();
+    mockOscState.reset();
     mockDbState.settings = null;
     mockDbState.shows = [];
     mockDbState.showsById = {};
@@ -361,5 +402,123 @@ describe("video mixer guardrails integration", () => {
     expect(takeShowMock).toHaveBeenCalledTimes(1);
     expect(takeShowMock).toHaveBeenCalledWith("show-draft-fallback-first");
     expectLiveAndFallbackShowLookupQueries();
+  });
+
+  describe("Companion OSC preview", () => {
+    async function configureCompanionOsc(
+      svc: typeof import("../../../src/server/services/video-mixer-service"),
+      options: {
+        host?: string;
+        port?: number;
+        page?: number;
+        pageWidth?: number;
+      } = {},
+    ) {
+      await svc.updateVideoMixerSettings({
+        mode: "companion-osc",
+        vmixHost: "",
+        vmixPort: 8099,
+        atemHost: "",
+        atemPort: 9910,
+        atemMe: null,
+        companionOscHost: options.host ?? "127.0.0.1",
+        companionOscPort: options.port ?? 12321,
+        companionOscPage: options.page ?? 1,
+        companionOscPageWidth: options.pageWidth ?? 8,
+      });
+    }
+
+    function registerShow(showId: string, technicalIdentifier: string) {
+      mockDbState.showsById[showId] = {
+        ...createShowFixture({
+          id: showId,
+          status: "live",
+          nextCueId: `${showId}-cue-1`,
+          technicalIdentifier,
+        }),
+        nextCueId: `${showId}-cue-1`,
+      };
+    }
+
+    it("sends OSC press to the correct address for a valid numeric identifier", async () => {
+      registerShow("show-osc-1", "9");
+      await configureCompanionOsc(service, { page: 1, pageWidth: 8 });
+
+      await service.syncNextCueVideoMixerPreview("show-osc-1");
+
+      // row = floor(9 / 8) = 1, column = (9 % 8) - 1 = 0
+      expect(mockOscState.instances).toHaveLength(1);
+      expect(mockOscState.instances[0]?.sendCalls).toEqual(["/location/1/1/0/press"]);
+    });
+
+    it("applies page width to compute row and column", async () => {
+      registerShow("show-osc-2", "10");
+      await configureCompanionOsc(service, { page: 1, pageWidth: 4 });
+
+      await service.syncNextCueVideoMixerPreview("show-osc-2");
+
+      // row = floor(10 / 4) = 2, column = (10 % 4) - 1 = 1
+      expect(mockOscState.instances).toHaveLength(1);
+      expect(mockOscState.instances[0]?.sendCalls).toEqual(["/location/1/2/1/press"]);
+    });
+
+    it("uses the configured page number in the OSC address", async () => {
+      registerShow("show-osc-3", "1");
+      await configureCompanionOsc(service, { page: 3, pageWidth: 8 });
+
+      await service.syncNextCueVideoMixerPreview("show-osc-3");
+
+      // row = floor(1 / 8) = 0, column = (1 % 8) - 1 = 0
+      expect(mockOscState.instances).toHaveLength(1);
+      expect(mockOscState.instances[0]?.sendCalls).toEqual(["/location/3/0/0/press"]);
+    });
+
+    it("closes the OSC client after sending the message", async () => {
+      registerShow("show-osc-close", "1");
+      await configureCompanionOsc(service);
+
+      await service.syncNextCueVideoMixerPreview("show-osc-close");
+
+      expect(mockOscState.instances).toHaveLength(1);
+      expect(mockOscState.instances[0]?.closeCalls).toBe(1);
+    });
+
+    it("skips the OSC message when the technical identifier is not a valid integer", async () => {
+      registerShow("show-osc-non-numeric", "CAM_A");
+      await configureCompanionOsc(service);
+
+      await service.syncNextCueVideoMixerPreview("show-osc-non-numeric");
+
+      expect(mockOscState.instances).toHaveLength(0);
+    });
+
+    it("skips the OSC message when the host is not configured", async () => {
+      registerShow("show-osc-no-host", "9");
+      await configureCompanionOsc(service, { host: "" });
+
+      await service.syncNextCueVideoMixerPreview("show-osc-no-host");
+
+      expect(mockOscState.instances).toHaveLength(0);
+    });
+
+    it("reports connection status as connected when host is configured", async () => {
+      await configureCompanionOsc(service, { host: "127.0.0.1", port: 12321 });
+
+      const status = await service.getVideoMixerConnectionStatus();
+
+      expect(status.mode).toBe("companion-osc");
+      expect(status.state).toBe("connected");
+      expect(status.host).toBe("127.0.0.1");
+      expect(status.port).toBe(12321);
+    });
+
+    it("reports connection status as inactive when host is not configured", async () => {
+      await configureCompanionOsc(service, { host: "" });
+
+      const status = await service.getVideoMixerConnectionStatus();
+
+      expect(status.mode).toBe("companion-osc");
+      expect(status.state).toBe("inactive");
+    });
   });
 });

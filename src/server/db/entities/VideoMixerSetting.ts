@@ -1,7 +1,7 @@
 import { EntitySchema } from "typeorm";
 import { BaseRecord } from "./BaseRecord";
 
-export type VideoMixerMode = "none" | "vmix" | "atem";
+export type VideoMixerMode = "none" | "vmix" | "atem" | "companion-osc";
 
 export class VideoMixerSetting extends BaseRecord {
   key!: string;
@@ -11,6 +11,10 @@ export class VideoMixerSetting extends BaseRecord {
   atemHost!: string | null;
   atemPort!: number | null;
   atemMe!: number | null;
+  companionOscHost!: string | null;
+  companionOscPort!: number | null;
+  companionOscPage!: number | null;
+  companionOscPageWidth!: number | null;
 }
 
 export const VideoMixerSettingSchema = new EntitySchema<VideoMixerSetting>({
@@ -28,5 +32,9 @@ export const VideoMixerSettingSchema = new EntitySchema<VideoMixerSetting>({
     atemHost: { type: String, nullable: true },
     atemPort: { type: Number, nullable: true },
     atemMe: { type: Number, nullable: true },
+    companionOscHost: { type: String, nullable: true },
+    companionOscPort: { type: Number, nullable: true },
+    companionOscPage: { type: Number, nullable: true },
+    companionOscPageWidth: { type: Number, nullable: true },
   },
 });

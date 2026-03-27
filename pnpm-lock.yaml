@@ -71,6 +71,9 @@ importers:
       multer:
         specifier: ^2.1.1
         version: 2.1.1
+      node-osc:
+        specifier: ^11.3.0
+        version: 11.3.0
       node-vmix:
         specifier: ^1.7.1
         version: 1.7.1
@@ -2203,6 +2206,10 @@ packages:
     resolution: {integrity: sha512-olTJRgUtAb/hOXG0E93wZDs5YiJlgbXxTwQAFHyNlRsXQnYzUaF2aGgujZbw+hR8aF4ZG/rST57bWMWD16jr9w==}
     engines: {node: '>= 10.12.0'}
     hasBin: true
+
+  node-osc@11.3.0:
+    resolution: {integrity: sha512-MtXBBcdzBO00ykGdoe23TB0Ex6Yv9bEf0yB4d4HjWB6hyaFzPg/QGTyw/YaLR2Uwaro+4eM7VCWtzRHu1El4ng==}
+    engines: {node: ^20.9.0 || ^22.11.0 || >=24.0.0}
 
   node-releases@2.0.36:
     resolution: {integrity: sha512-TdC8FSgHz8Mwtw9g5L4gR/Sh9XhSP/0DEkQxfEFXOpiul5IiHgHan2VhYYb6agDSfp4KuvltmGApc8HMgUrIkA==}
@@ -5107,6 +5114,8 @@ snapshots:
       - bluebird
       - supports-color
     optional: true
+
+  node-osc@11.3.0: {}
 
   node-releases@2.0.36: {}
 

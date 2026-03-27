@@ -1,5 +1,6 @@
 import { Atem, AtemConnectionStatus, type AtemState } from "atem-connection";
 import { ConnectionTCP } from "node-vmix";
+import { Client as OscClient } from "node-osc";
 import { setTimeout as sleep } from "node:timers/promises";
 import { IsNull, Not } from "typeorm";
 import { appDataSource } from "../db/data-source";
@@ -14,6 +15,9 @@ const GLOBAL_VIDEO_MIXER_SETTINGS_KEY = "global";
 const DEFAULT_VMIX_PORT = 8099;
 const DEFAULT_ATEM_PORT = 9910;
 const DEFAULT_ATEM_ME = 0;
+const DEFAULT_COMPANION_OSC_PORT = 12321;
+const DEFAULT_COMPANION_OSC_PAGE = 1;
+const DEFAULT_COMPANION_OSC_PAGE_WIDTH = 8;
 const VMIX_CONNECT_TIMEOUT_MS = 5000;
 const ATEM_CONNECT_TIMEOUT_MS = 5000;
 const MIXER_TEST_DELAY = 1000;
@@ -48,10 +52,14 @@ export type VideoMixerSettingsSnapshot = {
   atemHost: string;
   atemPort: number;
   atemMe: number;
+  companionOscHost: string;
+  companionOscPort: number;
+  companionOscPage: number;
+  companionOscPageWidth: number;
 };
 
 export type VideoMixerPreviewTestResult = {
-  mode: Exclude<VideoMixerMode, "none">;
+  mode: Exclude<VideoMixerMode, "none" | "companion-osc">;
 };
 
 export type VideoMixerConnectionStatusResult = {
@@ -76,6 +84,10 @@ export function getDefaultVideoMixerSettings(): VideoMixerSettingsSnapshot {
     atemHost: "",
     atemPort: DEFAULT_ATEM_PORT,
     atemMe: DEFAULT_ATEM_ME,
+    companionOscHost: "",
+    companionOscPort: DEFAULT_COMPANION_OSC_PORT,
+    companionOscPage: DEFAULT_COMPANION_OSC_PAGE,
+    companionOscPageWidth: DEFAULT_COMPANION_OSC_PAGE_WIDTH,
   };
 }
 
@@ -94,6 +106,10 @@ export async function getVideoMixerSettings(): Promise<VideoMixerSettingsSnapsho
     atemHost: existing.atemHost ?? "",
     atemPort: existing.atemPort ?? DEFAULT_ATEM_PORT,
     atemMe: existing.atemMe ?? DEFAULT_ATEM_ME,
+    companionOscHost: existing.companionOscHost ?? "",
+    companionOscPort: existing.companionOscPort ?? DEFAULT_COMPANION_OSC_PORT,
+    companionOscPage: existing.companionOscPage ?? DEFAULT_COMPANION_OSC_PAGE,
+    companionOscPageWidth: existing.companionOscPageWidth ?? DEFAULT_COMPANION_OSC_PAGE_WIDTH,
   };
 }
 
@@ -108,6 +124,10 @@ export async function updateVideoMixerSettings(settings: Omit<VideoMixerSettings
         atemHost: existing.atemHost ?? "",
         atemPort: existing.atemPort ?? DEFAULT_ATEM_PORT,
         atemMe: existing.atemMe ?? DEFAULT_ATEM_ME,
+        companionOscHost: existing.companionOscHost ?? "",
+        companionOscPort: existing.companionOscPort ?? DEFAULT_COMPANION_OSC_PORT,
+        companionOscPage: existing.companionOscPage ?? DEFAULT_COMPANION_OSC_PAGE,
+        companionOscPageWidth: existing.companionOscPageWidth ?? DEFAULT_COMPANION_OSC_PAGE_WIDTH,
       }
     : getDefaultVideoMixerSettings();
 
@@ -118,6 +138,10 @@ export async function updateVideoMixerSettings(settings: Omit<VideoMixerSettings
   entity.atemHost = settings.atemHost;
   entity.atemPort = settings.atemPort;
   entity.atemMe = settings.atemMe;
+  entity.companionOscHost = settings.companionOscHost;
+  entity.companionOscPort = settings.companionOscPort;
+  entity.companionOscPage = settings.companionOscPage;
+  entity.companionOscPageWidth = settings.companionOscPageWidth;
 
   await repository.save(entity);
 
@@ -138,6 +162,10 @@ export async function testVideoMixerPreview(): Promise<VideoMixerPreviewTestResu
 
   if (settings.mode === "none") {
     throw new Error("No video mixer integration is currently active.");
+  }
+
+  if (settings.mode === "companion-osc") {
+    throw new Error("Test preview is not supported for the Companion OSC integration.");
   }
 
   if (settings.mode === "vmix") {
@@ -220,6 +248,24 @@ export async function getVideoMixerConnectionStatus(): Promise<VideoMixerConnect
     };
   }
 
+  if (settings.mode === "companion-osc") {
+    if (!shouldUseCompanionOsc(settings)) {
+      return {
+        mode: "companion-osc",
+        state: "inactive",
+        host: settings.companionOscHost,
+        port: settings.companionOscPort,
+      };
+    }
+
+    return {
+      mode: "companion-osc",
+      state: "connected",
+      host: settings.companionOscHost,
+      port: settings.companionOscPort,
+    };
+  }
+
   const connection = persistentAtemConnection;
   if (!shouldUseAtem(settings)) {
     return {
@@ -273,6 +319,10 @@ export async function reconnectVideoMixerConnections(): Promise<VideoMixerConnec
     return getVideoMixerConnectionStatus();
   }
 
+  if (settings.mode === "companion-osc") {
+    return getVideoMixerConnectionStatus();
+  }
+
   await disposePersistentAtemConnection();
 
   if (shouldUseAtem(settings)) {
@@ -301,6 +351,11 @@ export async function syncNextCueVideoMixerPreview(showId: string) {
 
   if (settings.mode === "vmix") {
     await sendPreviewToVmix(settings, resolvedIdentifier);
+    return;
+  }
+
+  if (settings.mode === "companion-osc") {
+    await sendPreviewToCompanionOsc(settings, resolvedIdentifier);
     return;
   }
 
@@ -578,6 +633,35 @@ async function sendPreviewToAtem(
   logger.info`ATEM preview updated to input ${inputNumber} on M/E ${settings.atemMe} for show ${resolvedIdentifier.showId}.`;
 }
 
+async function sendPreviewToCompanionOsc(
+  settings: VideoMixerSettingsSnapshot,
+  resolvedIdentifier: ResolvedNextCueTechnicalIdentifier,
+) {
+  if (!shouldUseCompanionOsc(settings)) {
+    logger.warn`Skipping Companion OSC preview update because the integration is not configured.`;
+    return;
+  }
+
+  const identifier = Number.parseInt(resolvedIdentifier.technicalIdentifier.trim(), 10);
+  if (Number.isNaN(identifier)) {
+    logger.warn`Skipping Companion OSC preview update because technical identifier '${resolvedIdentifier.technicalIdentifier}' is not a valid integer.`;
+    return;
+  }
+
+  const page = settings.companionOscPage;
+  const row = Math.floor(identifier / settings.companionOscPageWidth);
+  const column = (identifier % settings.companionOscPageWidth) - 1;
+
+  const address = `/location/${page}/${row}/${column}/press`;
+  const client = new OscClient(settings.companionOscHost, settings.companionOscPort);
+  try {
+    await client.send(address);
+    logger.info`Companion OSC message sent to ${address} at ${settings.companionOscHost}:${settings.companionOscPort} for show ${resolvedIdentifier.showId}.`;
+  } finally {
+    await client.close();
+  }
+}
+
 async function reconfigurePersistentVideoMixerConnections(
   previousSettings: VideoMixerSettingsSnapshot,
   nextSettings: VideoMixerSettingsSnapshot,
@@ -800,6 +884,10 @@ function shouldUseVmix(settings: VideoMixerSettingsSnapshot) {
 
 function shouldUseAtem(settings: VideoMixerSettingsSnapshot) {
   return settings.mode === "atem" && settings.atemHost.trim().length > 0;
+}
+
+function shouldUseCompanionOsc(settings: VideoMixerSettingsSnapshot) {
+  return settings.mode === "companion-osc" && settings.companionOscHost.trim().length > 0;
 }
 
 function haveVmixParametersChanged(

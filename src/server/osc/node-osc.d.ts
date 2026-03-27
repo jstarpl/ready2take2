@@ -20,4 +20,12 @@ declare module "node-osc" {
     close(cb: (err?: Error) => void): void;
     close(): Promise<void>;
   }
+
+  export class Client extends EventEmitter {
+    constructor(host: string, port: number);
+    host: string;
+    port: number;
+    send(address: string, ...args: OscArg[]): Promise<void>;
+    close(): Promise<void>;
+  }
 }
