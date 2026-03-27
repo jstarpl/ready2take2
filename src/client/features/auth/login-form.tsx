@@ -31,12 +31,14 @@ export function LoginForm() {
               loginMutation.mutate({ username, password });
             }}
           >
-            <Input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Username" />
+            <Input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Username" autoCorrect="off" autoCapitalize="none" />
             <Input
               value={password}
               type="password"
               onChange={(event) => setPassword(event.target.value)}
               placeholder="Password"
+              autoCorrect="off"
+              autoCapitalize="none"
             />
             {loginMutation.error ? <p className="text-sm text-red-600">{loginMutation.error.message}</p> : null}
             <Button className="w-full" type="submit" disabled={loginMutation.isPending}>
