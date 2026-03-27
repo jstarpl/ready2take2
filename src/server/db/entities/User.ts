@@ -7,6 +7,7 @@ export class User extends BaseRecord {
   username!: string;
   displayName!: string | null;
   passwordHash!: string;
+  forcePasswordChange!: boolean;
   sessions!: Session[];
   createdProjects!: Project[];
 }
@@ -22,6 +23,7 @@ export const UserSchema = new EntitySchema<User>({
     username: { type: String, unique: true },
     displayName: { type: String, nullable: true },
     passwordHash: { type: String },
+    forcePasswordChange: { type: Boolean, default: false },
   },
   relations: {
     sessions: { type: "one-to-many", target: "Session", inverseSide: "user" },

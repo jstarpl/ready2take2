@@ -1,7 +1,22 @@
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
-import { loginInputSchema, createUserInputSchema, changePasswordInputSchema, deleteUserInputSchema } from "@/shared/schemas";
+import {
+  loginInputSchema,
+  createUserInputSchema,
+  changePasswordInputSchema,
+  changeDefaultPasswordInputSchema,
+  deleteUserInputSchema,
+} from "@/shared/schemas";
 import { clearSessionCookie, setSessionCookie } from "../../auth/session";
-import { createSessionForUser, deleteSession, validateCredentials, createUser, deleteUser, changePassword, getAllUsers } from "../../services/auth-service";
+import {
+  createSessionForUser,
+  deleteSession,
+  validateCredentials,
+  createUser,
+  deleteUser,
+  changePassword,
+  changeDefaultPassword,
+  getAllUsers,
+} from "../../services/auth-service";
 
 export const authRouter = createTRPCRouter({
   login: publicProcedure.input(loginInputSchema).mutation(async ({ ctx, input }) => {
@@ -17,6 +32,7 @@ export const authRouter = createTRPCRouter({
       id: user.id,
       username: user.username,
       displayName: user.displayName,
+      forcePasswordChange: user.forcePasswordChange,
     };
   }),
   logout: publicProcedure.mutation(async ({ ctx }) => {
@@ -33,6 +49,7 @@ export const authRouter = createTRPCRouter({
       id: ctx.user.id,
       username: ctx.user.username,
       displayName: ctx.user.displayName,
+      forcePasswordChange: ctx.user.forcePasswordChange,
     };
   }),
   listUsers: protectedProcedure.query(async () => {
@@ -69,4 +86,14 @@ export const authRouter = createTRPCRouter({
     await changePassword(ctx.user, input.currentPassword, input.newPassword);
     return { ok: true };
   }),
+  changeDefaultPassword: protectedProcedure
+    .input(changeDefaultPasswordInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.user) {
+        throw new Error("Not authenticated");
+      }
+
+      await changeDefaultPassword(ctx.user, input.newPassword);
+      return { ok: true };
+    }),
 });

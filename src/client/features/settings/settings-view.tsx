@@ -96,6 +96,21 @@ export function SettingsView() {
       setChangePasswordError(null);
       setChangePasswordSuccess(true);
       setTimeout(() => setChangePasswordSuccess(false), 3000);
+      await utils.auth.me.invalidate();
+    },
+    onError: (error) => {
+      setChangePasswordError(error.message);
+    },
+  });
+
+  const changeDefaultPasswordMutation = trpc.auth.changeDefaultPassword.useMutation({
+    onSuccess: async () => {
+      setNewPasswordChange("");
+      setConfirmNewPassword("");
+      setChangePasswordError(null);
+      setChangePasswordSuccess(true);
+      setTimeout(() => setChangePasswordSuccess(false), 3000);
+      await utils.auth.me.invalidate();
       setShowForcePasswordChangeModal(false);
     },
     onError: (error) => {
@@ -140,7 +155,7 @@ export function SettingsView() {
 
   // Check if user needs to change password (admin with default password)
   const needsPasswordChange = () => {
-    return currentUser?.username === "admin" && !sessionStorage.getItem("adminPasswordChanged");
+    return currentUser?.forcePasswordChange === true;
   };
 
   useEffect(() => {
@@ -259,15 +274,29 @@ export function SettingsView() {
       currentPassword,
       newPassword: newPasswordChange,
     });
-
-    // Mark that admin has changed password
-    if (currentUser?.username === "admin") {
-      sessionStorage.setItem("adminPasswordChanged", "true");
-    }
   }
 
   function handleForcePasswordChangeSubmit(event: React.FormEvent) {
-    handleChangePassword(event);
+    event.preventDefault();
+
+    if (!newPasswordChange || !confirmNewPassword) {
+      setChangePasswordError("All fields are required");
+      return;
+    }
+
+    if (newPasswordChange.length < 6) {
+      setChangePasswordError("New password must be at least 6 characters");
+      return;
+    }
+
+    if (newPasswordChange !== confirmNewPassword) {
+      setChangePasswordError("New passwords do not match");
+      return;
+    }
+
+    changeDefaultPasswordMutation.mutate({
+      newPassword: newPasswordChange,
+    });
   }
 
   return (
@@ -286,19 +315,6 @@ export function SettingsView() {
             </CardHeader>
             <CardContent>
               <form className="space-y-4" onSubmit={handleForcePasswordChangeSubmit}>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Current Password
-                  </label>
-                  <Input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="Enter current password"
-                    autoComplete="current-password"
-                  />
-                </div>
-
                 <div className="space-y-1">
                   <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     New Password
@@ -334,9 +350,9 @@ export function SettingsView() {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={changePasswordMutation.isPending}
+                  disabled={changeDefaultPasswordMutation.isPending}
                 >
-                  {changePasswordMutation.isPending ? "Changing..." : "Change Password"}
+                  {changeDefaultPasswordMutation.isPending ? "Changing..." : "Change Password"}
                 </Button>
               </form>
             </CardContent>

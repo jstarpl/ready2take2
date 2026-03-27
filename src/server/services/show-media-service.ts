@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import type { Express } from "express";
 import { appDataSource } from "../db/data-source";
 import { Show } from "../db/entities/Show";
 import { ShowMediaFile } from "../db/entities/ShowMediaFile";
@@ -35,7 +34,18 @@ async function removeFileIfPresent(filePath: string) {
   await fs.promises.rm(filePath, { force: true });
 }
 
-export async function createShowMediaFile(showId: string, file: Express.Multer.File) {
+interface IFile {
+    /** Name of the file on the uploader's computer. */
+    originalname: string;
+    /** Value of the `Content-Type` header for this file. */
+    mimetype: string;
+    /** Size of the file in bytes. */
+    size: number;
+    /** `DiskStorage` only: Full path to the uploaded file. */
+    path: string;
+}
+
+export async function createShowMediaFile(showId: string, file: IFile) {
   const showRepository = appDataSource.getRepository(Show);
   const mediaRepository = appDataSource.getRepository(ShowMediaFile);
 

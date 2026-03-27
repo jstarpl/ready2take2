@@ -6,10 +6,11 @@ import { Input } from "@/client/components/ui/input";
 
 export function LoginForm() {
   const utils = trpc.useUtils();
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("admin123!");
+  const [username, setUsername] = useState(window.localStorage.getItem("lastUsername") || "admin");
+  const [password, setPassword] = useState("");
   const loginMutation = trpc.auth.login.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (data) => {
+      window.localStorage.setItem("lastUsername", data.username);
       await utils.auth.me.invalidate();
       await utils.project.list.invalidate();
     },

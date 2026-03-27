@@ -8,6 +8,12 @@ export async function ensureSeedUser() {
   const userRepository = appDataSource.getRepository(User);
   const existing = await userRepository.findOne({ where: { username: "admin" } });
   if (existing) {
+    const shouldForcePasswordChange = await argon2.verify(existing.passwordHash, "admin123!");
+    if (existing.forcePasswordChange !== shouldForcePasswordChange) {
+      existing.forcePasswordChange = shouldForcePasswordChange;
+      return userRepository.save(existing);
+    }
+
     return existing;
   }
 
@@ -15,6 +21,7 @@ export async function ensureSeedUser() {
     username: "admin",
     displayName: "Production Admin",
     passwordHash: await argon2.hash("admin123!"),
+    forcePasswordChange: true,
   });
 
   return userRepository.save(seededUser);
@@ -75,7 +82,7 @@ export async function deleteSession(sessionId: string | undefined) {
 
 export async function createUser(username: string, password: string, displayName?: string | null) {
   const userRepository = appDataSource.getRepository(User);
-  
+
   // Check if user already exists
   const existing = await userRepository.findOne({ where: { username } });
   if (existing) {
@@ -86,6 +93,7 @@ export async function createUser(username: string, password: string, displayName
     username,
     displayName: displayName || null,
     passwordHash: await argon2.hash(password),
+    forcePasswordChange: false,
   });
 
   return userRepository.save(user);
@@ -111,6 +119,23 @@ export async function changePassword(user: User, currentPassword: string, newPas
 
   const userRepository = appDataSource.getRepository(User);
   user.passwordHash = await argon2.hash(newPassword);
+  user.forcePasswordChange = false;
+  return userRepository.save(user);
+}
+
+export async function changeDefaultPassword(user: User, newPassword: string) {
+  if (user.username !== "admin") {
+    throw new Error("Only the default admin account can use this password change flow");
+  }
+
+  const isUsingDefaultPassword = await argon2.verify(user.passwordHash, "admin123!");
+  if (!isUsingDefaultPassword) {
+    throw new Error("Default password has already been changed");
+  }
+
+  const userRepository = appDataSource.getRepository(User);
+  user.passwordHash = await argon2.hash(newPassword);
+  user.forcePasswordChange = false;
   return userRepository.save(user);
 }
 
