@@ -20,6 +20,9 @@ import { banner, configureLogger, getLogger } from "./lib/logger";
 
 const logger = getLogger('server');
 const PORT = Number(process.env.PORT) || 3000;
+const BOOTSTRAP_MODE = process.env.BOOTSTRAP_MODE === "docker" ? "docker" : "default";
+const clientDistDirectory = path.resolve(process.cwd(), "dist", "client");
+const clientRouteMatcher = /^(?!\/(?:api|trpc|uploads)(?:\/|$)|\/health$).*/;
 
 async function bootstrap() {
   await configureLogger();
@@ -57,6 +60,14 @@ async function bootstrap() {
   }
 
   app.use("/uploads", express.static(uploadsRootDirectory));
+
+  if (BOOTSTRAP_MODE === "docker") {
+    if (!fs.existsSync(clientDistDirectory)) {
+      throw new Error(`Docker bootstrap mode requires built client assets at ${clientDistDirectory}`);
+    }
+
+    app.use(express.static(clientDistDirectory));
+  }
 
   app.get("/health", (_request, response) => {
     response.json({ ok: true });
@@ -106,6 +117,12 @@ async function bootstrap() {
       createContext,
     }),
   );
+
+  if (BOOTSTRAP_MODE === "docker") {
+    app.get(clientRouteMatcher, (_request, response) => {
+      response.sendFile(path.join(clientDistDirectory, "index.html"));
+    });
+  }
 
   const server = app.listen(PORT, () => {
     logger.debug`App server listening on http://localhost:${PORT}`;

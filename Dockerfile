@@ -34,6 +34,7 @@ RUN mkdir -p data/uploads/_tmp
 EXPOSE 3000
 
 ENV NODE_ENV=production
+ENV BOOTSTRAP_MODE=docker
 
 # Mount this volume to persist the SQLite database and uploaded files
 VOLUME ["/app/data"]
