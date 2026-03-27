@@ -39,6 +39,7 @@
     "express": "^5.1.0",
     "lucide-react": "^0.511.0",
     "multer": "^2.1.1",
+    "node-osc": "^11.3.0",
     "node-vmix": "^1.7.1",
     "qrcode": "^1.5.4",
     "react": "^19.1.0",

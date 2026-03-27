@@ -16,6 +16,7 @@ import { deleteExpiredSessions, getSessionUser } from "./services/auth-service";
 import { createShowMediaFile, deleteShowMediaFile, ensureUploadDirectories, uploadsTempDirectory, uploadsRootDirectory } from "./services/show-media-service";
 import { seedInitialData } from "./services/seed-service";
 import { reconnectVideoMixerConnections, shutdownVideoMixerConnections } from "./services/video-mixer-service";
+import { startOscServer, stopOscServer } from "./osc/osc-server";
 import { banner, configureLogger, getLogger } from "./lib/logger";
 
 const logger = getLogger('server');
@@ -175,6 +176,8 @@ async function bootstrap() {
     logger.error`Failed to establish video mixer connections on startup: ${message}`;
   });
 
+  startOscServer();
+
   let shutdownStarted = false;
   const shutdown = async (signal: string) => {
     if (shutdownStarted) {
@@ -187,6 +190,11 @@ async function bootstrap() {
     await shutdownVideoMixerConnections().catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "Unknown error";
       logger.error`Failed during shutdown cleanup: ${message}`;
+    });
+
+    await stopOscServer().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      logger.error`Failed to stop OSC server: ${message}`;
     });
 
     clearInterval(expiredSessionsCleanupTimer);
