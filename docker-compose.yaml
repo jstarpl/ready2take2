@@ -1,0 +1,12 @@
+services:
+  ready2take2:
+    image: jstarpl/ready2take2:latest
+    container_name: ready2take2
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - BOOTSTRAP_MODE=docker

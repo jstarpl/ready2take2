@@ -8,7 +8,34 @@ A web application simplifying coordination between the director and camera opera
 
 Progression through the cues is manual triggered by the director or by reacting to transitions happening in the switcher.
 
-## Fast start
+## Quick start
+
+Easiest way to get going is to use [Docker](https://www.docker.com/). Create [docker-compose.yaml](./docker-compose.yaml) file:
+```yaml
+services:
+  ready2take2:
+    image: jstarpl/ready2take2:latest
+    container_name: ready2take2
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - BOOTSTRAP_MODE=docker
+```
+
+Run
+```bash
+docker compose up
+```
+
+Open the app at `http://localhost:3000` and sign in with the default credentials:
+- Username: `admin`
+- Password: `admin123!`
+
+## Fast start for development
 
 1. Install dependencies:
 	 - `pnpm install`
@@ -17,9 +44,6 @@ Progression through the cues is manual triggered by the director or by reacting 
 3. Open the app:
 	 - Client: `http://localhost:5173`
 	 - Server: `http://localhost:3000`
-4. Sign in with seeded local credentials:
-	 - username: `admin`
-	 - password: `admin123!`
 
 ## Validation commands
 
