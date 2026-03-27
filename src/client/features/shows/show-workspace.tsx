@@ -656,6 +656,12 @@ function ShowWorkspaceContent() {
   );
   const canTake = Boolean(showId && (show?.nextCueId || snapshot.selectedCueId) && !takeShowMutation.isPending);
   const canReset = Boolean(showId && (show?.nextCueId || show?.currentCueId) && !resetShowMutation.isPending);
+  const nextCueOrderIndex = useMemo(
+    () => (show?.nextCueId ? orderedCueIds.indexOf(show.nextCueId) : -1),
+    [show?.nextCueId, orderedCueIds]
+  );
+  const canMoveNextForward = Boolean(show?.nextCueId && nextCueOrderIndex >= 0 && nextCueOrderIndex < orderedCueIds.length - 1 && !setNextCueMutation.isPending);
+  const canMoveNextBackward = Boolean(show?.nextCueId && nextCueOrderIndex > 0 && !setNextCueMutation.isPending);
   const canMoveCueToNow = Boolean(selectedCue && !updateCueMutation.isPending);
 
   const nextCueId = useMemo(() => {
@@ -704,6 +710,24 @@ function ShowWorkspaceContent() {
     }
 
     resetShowMutation.mutate({ showId });
+  }
+
+  function handleMoveNextForward() {
+    if (!showId || !show?.nextCueId || !canMoveNextForward) {
+      return;
+    }
+    if (nextCueOrderIndex + 1 >= orderedCueIds.length) return;
+    const newNextCueId = orderedCueIds[nextCueOrderIndex + 1];
+    setNextCueMutation.mutate({ showId, cueId: newNextCueId });
+  }
+
+  function handleMoveNextBackward() {
+    if (!showId || !show?.nextCueId || !canMoveNextBackward) {
+      return;
+    }
+    if (nextCueOrderIndex - 1 < 0) return;
+    const newNextCueId = orderedCueIds[nextCueOrderIndex - 1];
+    setNextCueMutation.mutate({ showId, cueId: newNextCueId });
   }
 
   function handleMoveCueToNow() {
@@ -838,6 +862,18 @@ function ShowWorkspaceContent() {
         return;
       }
 
+      if (event.code === "F9" && !event.shiftKey) {
+        event.preventDefault();
+        handleMoveNextForward();
+        return;
+      }
+
+      if (event.code === "F9" && event.shiftKey) {
+        event.preventDefault();
+        handleMoveNextBackward();
+        return;
+      }
+
       if (event.ctrlKey && event.code === "KeyM") {
         if (isEditableTarget) {
           return;
@@ -875,7 +911,7 @@ function ShowWorkspaceContent() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleMoveCueToNow, handleTake, show?.nextCueId, showId, takeShowMutation.isPending, store, snapshot.selectedCueId, orderedCueIds, snapshot.liveCueRecordingMode, cameraColorSettingsQuery.data, handleLiveCueRecord]);
+  }, [handleMoveCueToNow, handleTake, handleMoveNextForward, handleMoveNextBackward, show?.nextCueId, showId, takeShowMutation.isPending, store, snapshot.selectedCueId, orderedCueIds, snapshot.liveCueRecordingMode, cameraColorSettingsQuery.data, handleLiveCueRecord]);
 
   useEffect(() => {
     if (store.activeModal !== "addCue") {
@@ -1123,6 +1159,16 @@ function ShowWorkspaceContent() {
                       Take
                       <MenubarShortcut>F12</MenubarShortcut>
                     </MenubarItem>
+                    <MenubarSeparator />
+                    <MenubarItem disabled={!canMoveNextForward} onSelect={handleMoveNextForward}>
+                      Move Next Forward
+                      <MenubarShortcut>F9</MenubarShortcut>
+                    </MenubarItem>
+                    <MenubarItem disabled={!canMoveNextBackward} onSelect={handleMoveNextBackward}>
+                      Move Next Backward
+                      <MenubarShortcut>⇧F9</MenubarShortcut>
+                    </MenubarItem>
+                    <MenubarSeparator />
                     <MenubarItem onSelect={() => window.open(`/shows/${showId}/cue-list-view`, '_blank', 'noopener,noreferrer')}>
                       Open Cue List View
                     </MenubarItem>
