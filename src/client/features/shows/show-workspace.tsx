@@ -581,6 +581,20 @@ function ShowWorkspaceContent() {
       }
     },
   });
+  const moveNextForwardMutation = trpc.show.moveNextForward.useMutation({
+    onSuccess: async () => {
+      if (showId) {
+        await utils.show.getDetail.invalidate({ showId });
+      }
+    },
+  });
+  const moveNextBackwardMutation = trpc.show.moveNextBackward.useMutation({
+    onSuccess: async () => {
+      if (showId) {
+        await utils.show.getDetail.invalidate({ showId });
+      }
+    },
+  });
   const takeShowMutation = trpc.show.take.useMutation({
     onSuccess: async () => {
       if (showId) {
@@ -656,6 +670,12 @@ function ShowWorkspaceContent() {
   );
   const canTake = Boolean(showId && (show?.nextCueId || snapshot.selectedCueId) && !takeShowMutation.isPending);
   const canReset = Boolean(showId && (show?.nextCueId || show?.currentCueId) && !resetShowMutation.isPending);
+  const nextCueOrderIndex = useMemo(
+    () => (show?.nextCueId ? orderedCueIds.indexOf(show.nextCueId) : -1),
+    [show?.nextCueId, orderedCueIds]
+  );
+  const canMoveNextForward = Boolean(show?.nextCueId && nextCueOrderIndex >= 0 && nextCueOrderIndex < orderedCueIds.length - 1 && !moveNextForwardMutation.isPending);
+  const canMoveNextBackward = Boolean(show?.nextCueId && nextCueOrderIndex > 0 && !moveNextBackwardMutation.isPending);
   const canMoveCueToNow = Boolean(selectedCue && !updateCueMutation.isPending);
 
   const nextCueId = useMemo(() => {
@@ -704,6 +724,20 @@ function ShowWorkspaceContent() {
     }
 
     resetShowMutation.mutate({ showId });
+  }
+
+  function handleMoveNextForward() {
+    if (!showId || !show?.nextCueId || !canMoveNextForward) {
+      return;
+    }
+    moveNextForwardMutation.mutate({ showId });
+  }
+
+  function handleMoveNextBackward() {
+    if (!showId || !show?.nextCueId || !canMoveNextBackward) {
+      return;
+    }
+    moveNextBackwardMutation.mutate({ showId });
   }
 
   function handleMoveCueToNow() {
@@ -838,6 +872,18 @@ function ShowWorkspaceContent() {
         return;
       }
 
+      if (event.code === "F9" && !event.shiftKey) {
+        event.preventDefault();
+        handleMoveNextForward();
+        return;
+      }
+
+      if (event.code === "F9" && event.shiftKey) {
+        event.preventDefault();
+        handleMoveNextBackward();
+        return;
+      }
+
       if (event.ctrlKey && event.code === "KeyM") {
         if (isEditableTarget) {
           return;
@@ -875,7 +921,7 @@ function ShowWorkspaceContent() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleMoveCueToNow, handleTake, show?.nextCueId, showId, takeShowMutation.isPending, store, snapshot.selectedCueId, orderedCueIds, snapshot.liveCueRecordingMode, cameraColorSettingsQuery.data, handleLiveCueRecord]);
+  }, [handleMoveCueToNow, handleTake, handleMoveNextForward, handleMoveNextBackward, show?.nextCueId, showId, takeShowMutation.isPending, store, snapshot.selectedCueId, orderedCueIds, snapshot.liveCueRecordingMode, cameraColorSettingsQuery.data, handleLiveCueRecord]);
 
   useEffect(() => {
     if (store.activeModal !== "addCue") {
@@ -1123,6 +1169,16 @@ function ShowWorkspaceContent() {
                       Take
                       <MenubarShortcut>F12</MenubarShortcut>
                     </MenubarItem>
+                    <MenubarSeparator />
+                    <MenubarItem disabled={!canMoveNextForward} onSelect={handleMoveNextForward}>
+                      Move Next Forward
+                      <MenubarShortcut>F9</MenubarShortcut>
+                    </MenubarItem>
+                    <MenubarItem disabled={!canMoveNextBackward} onSelect={handleMoveNextBackward}>
+                      Move Next Backward
+                      <MenubarShortcut>⇧F9</MenubarShortcut>
+                    </MenubarItem>
+                    <MenubarSeparator />
                     <MenubarItem onSelect={() => window.open(`/shows/${showId}/cue-list-view`, '_blank', 'noopener,noreferrer')}>
                       Open Cue List View
                     </MenubarItem>
