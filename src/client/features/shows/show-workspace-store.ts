@@ -16,7 +16,7 @@ export interface ShowWorkspaceState {
   newTrackType: "custom" | "camera";
 
   // Modal state
-  activeModal: "addCue" | "addTrack" | "removeTrack" | "media" | "selectLiveCueTrack" | null;
+  activeModal: "addCue" | "importCues" | "addTrack" | "removeTrack" | "media" | "selectLiveCueTrack" | null;
 
   // Cue selection
   selectedCueId: string | null;
