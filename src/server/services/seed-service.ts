@@ -16,10 +16,12 @@ export async function seedInitialData() {
   }
 
   const cameraColorRepository = appDataSource.getRepository(CameraColorSetting);
-  cameraColorRepository.save(cameraColorRepository.create({ identifier: "1", color: "#ffb700" }));
-  cameraColorRepository.save(cameraColorRepository.create({ identifier: "2", color: "#00ffff" }));
-  cameraColorRepository.save(cameraColorRepository.create({ identifier: "3", color: "#0d00ff" }));
-  cameraColorRepository.save(cameraColorRepository.create({ identifier: "4", color: "#ff0099" }));
+  await cameraColorRepository.save([
+    cameraColorRepository.create({ identifier: "1", color: "#ffb700" }),
+    cameraColorRepository.create({ identifier: "2", color: "#00ffff" }),
+    cameraColorRepository.create({ identifier: "3", color: "#0d00ff" }),
+    cameraColorRepository.create({ identifier: "4", color: "#ff0099" }),
+  ]);
 
   const project = await projectRepository.save(
     projectRepository.create({
