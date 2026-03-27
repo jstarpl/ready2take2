@@ -9,7 +9,9 @@
     "dev:server": "tsx watch src/server/index.ts",
     "build": "vite build && tsc -p tsconfig.server.json && tsc-alias -p tsconfig.server.json",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json",
-    "start": "node dist/server/index.js"
+    "start": "node dist/server/index.js",
+    "test": "vitest run",
+    "test:integration:video-mixer": "vitest run tests/integration/video-mixer"
   },
   "keywords": [],
   "author": "",
@@ -67,6 +69,7 @@
     "tsc-alias": "^1.8.10",
     "tsx": "^4.20.3",
     "typescript": "5.4.5",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vitest": "^4.1.2"
   }
 }
