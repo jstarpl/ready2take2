@@ -4,6 +4,7 @@ import { Button } from "@/client/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/client/components/ui/card";
 import { Input } from "@/client/components/ui/input";
 import { Trash2 } from "lucide-react";
+import { cn } from "@/client/lib/utils";
 
 type VideoMixerMode = "none" | "vmix" | "atem";
 
@@ -293,7 +294,7 @@ export function SettingsView() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="font-semibold text-foreground">Connection status</div>
-                  <div className="mt-1 text-muted-foreground">
+                  <div className={cn("mt-1 text-muted-foreground", connectionStatus?.state === "disconnected" && "text-red-400", connectionStatus?.state === "connected" && "text-green-400")}>
                     {renderVideoMixerConnectionStatus(connectionStatus, videoMixerStatusQuery.isLoading)}
                   </div>
                 </div>

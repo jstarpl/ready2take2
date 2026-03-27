@@ -24,6 +24,7 @@ type PersistentVmixConnection = {
   connectPromise: Promise<ConnectionTCP> | null;
   lastObservedProgramPreviewInputs: { programInput: number; previewInput: number } | null;
   onTally: ((tally: string, ...args: unknown[]) => void) | null;
+  onError: ((error?: unknown) => void) | null;
 };
 
 type PersistentAtemConnection = {
@@ -585,6 +586,13 @@ async function getPersistentVmixConnection(settings: VideoMixerSettingsSnapshot)
       port: settings.vmixPort,
     });
 
+    const onError = (error?: unknown) => {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      logger.error`vMix socket error at ${settings.vmixHost}:${settings.vmixPort} - ${message}`;
+    };
+
+    connection.on("error", onError);
+
     persistentVmixConnection = {
       host: settings.vmixHost,
       port: settings.vmixPort,
@@ -592,6 +600,7 @@ async function getPersistentVmixConnection(settings: VideoMixerSettingsSnapshot)
       connectPromise: null,
       lastObservedProgramPreviewInputs: null,
       onTally: null,
+      onError,
     };
   }
 
@@ -613,9 +622,14 @@ async function getPersistentVmixConnection(settings: VideoMixerSettingsSnapshot)
         }
       });
 
-    currentConnection.connectPromise.then(async () => {
-      await attachPersistentVmixTallyListener(currentConnection);
-    })
+    currentConnection.connectPromise
+      .then(async () => {
+        await attachPersistentVmixTallyListener(currentConnection);
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        logger.error`Failed to connect to vMix at ${currentConnection.host}:${currentConnection.port} - ${message}`;
+      });
 
     return currentConnection.connectPromise;
   }
@@ -667,6 +681,11 @@ async function getPersistentAtemConnection(settings: VideoMixerSettingsSnapshot)
         }
       });
 
+    currentConnection.connectPromise.catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      logger.error`Failed to connect to ATEM at ${currentConnection.host}:${currentConnection.port} - ${message}`;
+    });
+
     return currentConnection.connectPromise;
   }
 
@@ -683,6 +702,10 @@ function disposePersistentVmixConnection() {
   if (persistentVmixConnection.onTally) {
     persistentVmixConnection.connection.off("tally", persistentVmixConnection.onTally);
     persistentVmixConnection.onTally = null;
+  }
+  if (persistentVmixConnection.onError) {
+    persistentVmixConnection.connection.off("error", persistentVmixConnection.onError);
+    persistentVmixConnection.onError = null;
   }
   persistentVmixConnection.lastObservedProgramPreviewInputs = null;
 

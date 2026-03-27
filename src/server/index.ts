@@ -134,7 +134,10 @@ async function bootstrap() {
     },
   });
 
-  await reconnectVideoMixerConnections();
+  reconnectVideoMixerConnections().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    logger.error`Failed to establish video mixer connections on startup: ${message}`;
+  });
 
   let shutdownStarted = false;
   const shutdown = async (signal: string) => {
