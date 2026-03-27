@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { SERVER_URL, trpc } from "@/client/lib/trpc";
 import { Badge } from "@/client/components/ui/badge";
@@ -305,16 +305,17 @@ function SortableCueRow({
 
   const selectedClass = isSelected ? "ring-2 ring-primary bg-primary/10" : "";
 
-  useEffect(() => {
-    if (setNodeRef as any) {
-      const element = document.querySelector(`[data-cue-id="${cue.id}"]`) as HTMLElement | null;
+  const combinedRef = useCallback(
+    (element: HTMLElement | null) => {
+      setNodeRef(element);
       onRefChange(cue.id, element);
-    }
-  }, [cue.id, onRefChange]);
+    },
+    [setNodeRef, cue.id, onRefChange],
+  );
 
   return (
     <div
-      ref={setNodeRef}
+      ref={combinedRef}
       data-cue-id={cue.id}
       style={style}
       onClick={() => onSelect(cue.id)}
@@ -378,7 +379,7 @@ function SortableCueRow({
         <Button
           size="sm"
           variant="outline"
-          className="px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:text-destructive"
+          className="px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
           onClick={() => onDelete(cue.id)}
           disabled={isDeleting}
           aria-label={`Delete cue ${cue.comment || (cue.cueOffsetMs !== null ? formatOffset(cue.cueOffsetMs) : "with no comment")}`}
@@ -447,6 +448,7 @@ function ShowWorkspaceContent() {
   const [currentTimeRequest, setCurrentTimeRequest] = useState<number | undefined>(undefined);
   const [orderedCueIds, setOrderedCueIds] = useState<string[]>([]);
   const [deletingMediaFileId, setDeletingMediaFileId] = useState<string | null>(null);
+  const [deletingCueId, setDeletingCueId] = useState<string | null>(null);
   const [liveRecordingDialogTrackId, setLiveRecordingDialogTrackId] = useState<string>("");
   const [selectedCueImportFile, setSelectedCueImportFile] = useState<File | null>(null);
   const [cueImportError, setCueImportError] = useState<string | null>(null);
@@ -456,12 +458,15 @@ function ShowWorkspaceContent() {
   const cueImportInputRef = useRef<HTMLInputElement | null>(null);
   const pendingLiveCueRef = useRef<{ identifier: string; trackId: string } | null>(null);
   const pendingScrollCueIdRef = useRef<string | null>(null);
-  const selectedUploadPreviewUrl = useMemo(() => {
+  const [selectedUploadPreviewUrl, setSelectedUploadPreviewUrl] = useState<string | null>(null);
+  useEffect(() => {
     if (!snapshot.selectedUpload) {
-      return null;
+      setSelectedUploadPreviewUrl(null);
+      return;
     }
-
-    return URL.createObjectURL(snapshot.selectedUpload);
+    const url = URL.createObjectURL(snapshot.selectedUpload);
+    setSelectedUploadPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
   }, [snapshot.selectedUpload]);
 
   const sensors = useSensors(
@@ -552,9 +557,13 @@ function ShowWorkspaceContent() {
   });
   const deleteCueMutation = trpc.cue.delete.useMutation({
     onSuccess: async () => {
+      setDeletingCueId(null);
       if (showId) {
         await utils.show.getDetail.invalidate({ showId });
       }
+    },
+    onError: () => {
+      setDeletingCueId(null);
     },
   });
 
@@ -932,13 +941,7 @@ function ShowWorkspaceContent() {
     }
   }, [snapshot.activeModal, show?.tracks]);
 
-  useEffect(() => {
-    return () => {
-      if (selectedUploadPreviewUrl) {
-        URL.revokeObjectURL(selectedUploadPreviewUrl);
-      }
-    };
-  }, [selectedUploadPreviewUrl]);
+
 
   if (!show) {
     return (
@@ -1120,7 +1123,7 @@ function ShowWorkspaceContent() {
                       Take
                       <MenubarShortcut>F12</MenubarShortcut>
                     </MenubarItem>
-                    <MenubarItem onSelect={() => window.open(`/shows/${showId}/cue-list-view`, '_blank')}>
+                    <MenubarItem onSelect={() => window.open(`/shows/${showId}/cue-list-view`, '_blank', 'noopener,noreferrer')}>
                       Open Cue List View
                     </MenubarItem>
                     <MenubarSeparator />
@@ -1228,8 +1231,8 @@ function ShowWorkspaceContent() {
                     }}
                     onSetCurrent={(cueId) => showId && setCurrentCueMutation.mutate({ showId, cueId })}
                     onSetNext={(cueId) => showId && setNextCueMutation.mutate({ showId, cueId })}
-                    onDelete={(cueId) => deleteCueMutation.mutate({ id: cueId })}
-                    isDeleting={deleteCueMutation.isPending}
+                    onDelete={(cueId) => { setDeletingCueId(cueId); deleteCueMutation.mutate({ id: cueId }); }}
+                    isDeleting={deletingCueId === cue.id}
                     isSelected={snapshot.selectedCueId === cue.id}
                     onSelect={(cueId) => (store.selectedCueId = cueId)}
                     onRefChange={(cueId, element) => {
@@ -1256,7 +1259,7 @@ function ShowWorkspaceContent() {
         </div>
 
         <ModalDialog
-          open={store.activeModal === "addCue"}
+          open={snapshot.activeModal === "addCue"}
           title="Add cue"
           description="Create a show-level cue across every track."
           onClose={() => {
