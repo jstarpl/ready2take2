@@ -10,7 +10,7 @@ Progression through the cues is manual triggered by the director or by reacting 
 
 ## Quick start
 
-Easiest way to get going is to use [Docker](https://www.docker.com/). Create [docker-compose.yaml](./docker-compose.yaml) file:
+Easiest way to get going is to use [Docker Compose](https://docs.docker.com/compose/install/). Create [docker-compose.yaml](./docker-compose.yaml) file:
 ```yaml
 services:
   ready2take2:
@@ -21,14 +21,11 @@ services:
       - "3000:3000"
     volumes:
       - ./data:/app/data
-    environment:
-      - NODE_ENV=production
-      - BOOTSTRAP_MODE=docker
 ```
 
 Run
 ```bash
-docker compose up
+docker-compose up -d
 ```
 
 Open the app at `http://localhost:3000` and sign in with the default credentials:
