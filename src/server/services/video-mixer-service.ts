@@ -1,6 +1,7 @@
 import { Atem, AtemConnectionStatus, type AtemState } from "atem-connection";
 import { ConnectionTCP } from "node-vmix";
 import { setTimeout as sleep } from "node:timers/promises";
+import { IsNull, Not } from "typeorm";
 import { appDataSource } from "../db/data-source";
 import { Show } from "../db/entities/Show";
 import { VideoMixerSetting, type VideoMixerMode } from "../db/entities/VideoMixerSetting";
@@ -24,6 +25,7 @@ type PersistentVmixConnection = {
   connectPromise: Promise<ConnectionTCP> | null;
   lastObservedProgramPreviewInputs: { programInput: number; previewInput: number } | null;
   onTally: ((tally: string, ...args: unknown[]) => void) | null;
+  onConnect: (() => void) | null;
   onError: ((error?: unknown) => void) | null;
 };
 
@@ -354,7 +356,13 @@ function resolveNextCueTechnicalIdentifierFromShow(show: Show): ResolvedNextCueT
 }
 
 async function resolveShowForProgramInput(inputNumber: number): Promise<ResolvedNextCueTechnicalIdentifier | null> {
-  const shows = await appDataSource.getRepository(Show).find({
+  const repository = appDataSource.getRepository(Show);
+
+  const liveShows = await repository.find({
+    where: {
+      status: "live",
+      nextCueId: Not(IsNull()),
+    },
     relations: {
       tracks: true,
       cues: { cueTrackValues: true },
@@ -364,6 +372,23 @@ async function resolveShowForProgramInput(inputNumber: number): Promise<Resolved
       cues: { orderKey: "ASC" },
     },
   });
+
+  const fallbackShows = await repository.find({
+    where: {
+      status: Not("live"),
+      nextCueId: Not(IsNull()),
+    },
+    relations: {
+      tracks: true,
+      cues: { cueTrackValues: true },
+    },
+    order: {
+      tracks: { position: "ASC" },
+      cues: { orderKey: "ASC" },
+    },
+  });
+
+  const shows = [...liveShows, ...fallbackShows];
 
   const matchingCandidates = shows
     .map((show) => ({
@@ -401,6 +426,11 @@ async function executeShowTakeForProgramInput(inputNumber: number) {
 }
 
 async function attachPersistentVmixTallyListener(connection: PersistentVmixConnection) {
+  if (connection.onTally) {
+    connection.connection.off("tally", connection.onTally);
+    connection.onTally = null;
+  }
+
   connection.onTally = (tally: string) => {
     void handlePersistentVmixTallyChanged(connection, tally).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "Unknown error";
@@ -408,8 +438,16 @@ async function attachPersistentVmixTallyListener(connection: PersistentVmixConne
     });
   };
 
-  connection.connection.send("SUBSCRIBE TALLY");
   connection.connection.on("tally", connection.onTally);
+}
+
+function subscribePersistentVmixTally(connection: PersistentVmixConnection) {
+  try {
+    connection.connection.send("SUBSCRIBE TALLY");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    logger.error`Failed to subscribe to vMix tally at ${connection.host}:${connection.port} - ${message}`;
+  }
 }
 
 async function handlePersistentVmixTallyChanged(connection: PersistentVmixConnection, tally: string) {
@@ -600,8 +638,31 @@ async function getPersistentVmixConnection(settings: VideoMixerSettingsSnapshot)
       connectPromise: null,
       lastObservedProgramPreviewInputs: null,
       onTally: null,
+      onConnect: null,
       onError,
     };
+
+    const currentConnection = persistentVmixConnection;
+    currentConnection.onConnect = () => {
+      if (persistentVmixConnection !== currentConnection) {
+        return;
+      }
+
+      void attachPersistentVmixTallyListener(currentConnection)
+        .then(() => {
+          if (persistentVmixConnection !== currentConnection) {
+            return;
+          }
+
+          subscribePersistentVmixTally(currentConnection);
+        })
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : "Unknown error";
+          logger.error`Failed to attach vMix tally listener at ${currentConnection.host}:${currentConnection.port} - ${message}`;
+        });
+    };
+
+    connection.on("connect", currentConnection.onConnect);
   }
 
   if (persistentVmixConnection.connection.connected()) {
@@ -622,11 +683,7 @@ async function getPersistentVmixConnection(settings: VideoMixerSettingsSnapshot)
         }
       });
 
-    currentConnection.connectPromise
-      .then(async () => {
-        await attachPersistentVmixTallyListener(currentConnection);
-      })
-      .catch((error: unknown) => {
+    currentConnection.connectPromise.catch((error: unknown) => {
         const message = error instanceof Error ? error.message : "Unknown error";
         logger.error`Failed to connect to vMix at ${currentConnection.host}:${currentConnection.port} - ${message}`;
       });
@@ -703,6 +760,10 @@ function disposePersistentVmixConnection() {
     persistentVmixConnection.connection.off("tally", persistentVmixConnection.onTally);
     persistentVmixConnection.onTally = null;
   }
+  if (persistentVmixConnection.onConnect) {
+    persistentVmixConnection.connection.off("connect", persistentVmixConnection.onConnect);
+    persistentVmixConnection.onConnect = null;
+  }
   if (persistentVmixConnection.onError) {
     persistentVmixConnection.connection.off("error", persistentVmixConnection.onError);
     persistentVmixConnection.onError = null;
@@ -752,7 +813,11 @@ function haveAtemParametersChanged(
   previousSettings: VideoMixerSettingsSnapshot,
   nextSettings: VideoMixerSettingsSnapshot,
 ) {
-  return previousSettings.atemHost !== nextSettings.atemHost || previousSettings.atemPort !== nextSettings.atemPort;
+  return (
+    previousSettings.atemHost !== nextSettings.atemHost ||
+    previousSettings.atemPort !== nextSettings.atemPort ||
+    previousSettings.atemMe !== nextSettings.atemMe
+  );
 }
 
 async function connectToVmix(connection: ConnectionTCP, host: string, port: number) {
