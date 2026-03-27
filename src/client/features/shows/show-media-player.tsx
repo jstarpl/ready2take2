@@ -269,6 +269,7 @@ export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, pauseReq
                 src={mediaSrc}
                 className="h-24 w-40 border border-border/70 bg-black object-cover"
                 onLoadedMetadata={updateFromElementMetadata}
+                onDurationChange={updateFromElementMetadata}
                 onTimeUpdate={updateFromElementTime}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
@@ -283,6 +284,7 @@ export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, pauseReq
                   src={mediaSrc ?? undefined}
                   preload="metadata"
                   onLoadedMetadata={updateFromElementMetadata}
+                  onDurationChange={updateFromElementMetadata}
                   onTimeUpdate={updateFromElementTime}
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => setIsPlaying(false)}
