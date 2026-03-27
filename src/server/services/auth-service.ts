@@ -72,3 +72,49 @@ export async function deleteSession(sessionId: string | undefined) {
 
   await appDataSource.getRepository(Session).delete({ id: sessionId });
 }
+
+export async function createUser(username: string, password: string, displayName?: string | null) {
+  const userRepository = appDataSource.getRepository(User);
+  
+  // Check if user already exists
+  const existing = await userRepository.findOne({ where: { username } });
+  if (existing) {
+    throw new Error("User already exists");
+  }
+
+  const user = userRepository.create({
+    username,
+    displayName: displayName || null,
+    passwordHash: await argon2.hash(password),
+  });
+
+  return userRepository.save(user);
+}
+
+export async function deleteUser(userId: string) {
+  const userRepository = appDataSource.getRepository(User);
+  const sessionRepository = appDataSource.getRepository(Session);
+
+  // Delete all sessions for this user first
+  await sessionRepository.delete({ userId });
+
+  // Delete the user
+  await userRepository.delete({ id: userId });
+}
+
+export async function changePassword(user: User, currentPassword: string, newPassword: string) {
+  // Verify current password
+  const isValid = await argon2.verify(user.passwordHash, currentPassword);
+  if (!isValid) {
+    throw new Error("Current password is incorrect");
+  }
+
+  const userRepository = appDataSource.getRepository(User);
+  user.passwordHash = await argon2.hash(newPassword);
+  return userRepository.save(user);
+}
+
+export async function getAllUsers() {
+  const userRepository = appDataSource.getRepository(User);
+  return userRepository.find({ order: { createdAt: "ASC" } });
+}
