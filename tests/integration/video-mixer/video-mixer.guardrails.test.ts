@@ -46,6 +46,7 @@ type VideoMixerSettingRecord = {
 };
 
 type ShowFixtureRecord = Omit<ReturnType<typeof createShowFixture>, "nextCueId"> & {
+  currentCueId: string | null;
   nextCueId: string | null;
 };
 
@@ -53,7 +54,7 @@ const mockDbState: {
   settings: VideoMixerSettingRecord | null;
   shows: ShowFixtureRecord[];
   showsById: Record<string, ShowFixtureRecord>;
-  showFindCalls: Array<{ where?: { status?: unknown; nextCueId?: unknown } }>;
+  showFindCalls: Array<{ where?: { currentCueId?: unknown; nextCueId?: unknown } }>;
 } = {
   settings: null,
   shows: [],
@@ -124,15 +125,13 @@ vi.mock("../../../src/server/db/data-source", () => ({
       if (entity?.name === "Show") {
         return {
           findOne: async (query: { where: { id: string } }) => mockDbState.showsById[query.where.id] ?? null,
-          find: async (query: { where?: { status?: unknown; nextCueId?: unknown } }) => {
+          find: async (query: { where?: { currentCueId?: unknown; nextCueId?: unknown } }) => {
             mockDbState.showFindCalls.push(query);
 
             let rows = [...mockDbState.shows];
 
-            if (query.where?.status === "live") {
-              rows = rows.filter((show) => show.status === "live");
-            } else if (query.where?.status) {
-              rows = rows.filter((show) => show.status !== "live");
+            if (query.where?.currentCueId) {
+              rows = rows.filter((show) => show.currentCueId !== null);
             }
 
             if (query.where?.nextCueId) {
@@ -153,12 +152,9 @@ async function flushAsync() {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-function expectLiveAndFallbackShowLookupQueries() {
+function expectActiveCuePointerLookupQueries() {
   expect(mockDbState.showFindCalls).toHaveLength(2);
-  expect(mockDbState.showFindCalls[0]?.where?.status).toBe("live");
-  expect(mockDbState.showFindCalls[0]?.where?.nextCueId).toBeDefined();
-  expect(mockDbState.showFindCalls[1]?.where?.status).toBeDefined();
-  expect(mockDbState.showFindCalls[1]?.where?.status).not.toBe("live");
+  expect(mockDbState.showFindCalls[0]?.where?.currentCueId).toBeDefined();
   expect(mockDbState.showFindCalls[1]?.where?.nextCueId).toBeDefined();
 }
 
@@ -183,6 +179,10 @@ async function configureAtemAndConnect(service: typeof import("../../../src/serv
     atemHost: "127.0.0.1",
     atemPort: 9910,
     atemMe: 0,
+    companionOscHost: "",
+    companionOscPort: 8000,
+    companionOscPage: 1,
+    companionOscPageWidth: 8,
   });
 
   await service.reconnectVideoMixerConnections();
@@ -232,6 +232,10 @@ describe("video mixer guardrails integration", () => {
       atemHost: "127.0.0.1",
       atemPort: 9910,
       atemMe: 0,
+      companionOscHost: "",
+      companionOscPort: 8000,
+      companionOscPage: 1,
+      companionOscPageWidth: 8,
     });
     await service.reconnectVideoMixerConnections();
 
@@ -255,6 +259,10 @@ describe("video mixer guardrails integration", () => {
       atemHost: "",
       atemPort: 9910,
       atemMe: null,
+      companionOscHost: "",
+      companionOscPort: 8000,
+      companionOscPage: 1,
+      companionOscPageWidth: 8,
     });
 
     const connectingStatus = await service.getVideoMixerConnectionStatus();
@@ -299,6 +307,10 @@ describe("video mixer guardrails integration", () => {
       atemHost: "127.0.0.1",
       atemPort: 9910,
       atemMe: 0,
+      companionOscHost: "",
+      companionOscPort: 8000,
+      companionOscPage: 1,
+      companionOscPageWidth: 8,
     });
 
     const connectingStatus = await service.getVideoMixerConnectionStatus();
@@ -319,11 +331,12 @@ describe("video mixer guardrails integration", () => {
     connectSpy.mockRestore();
   });
 
-  it("resolves show lookup candidates using live-first filtering", async () => {
+  it("resolves show lookup only when a single show has active cue pointers", async () => {
     const showLiveNoNextCue: ShowFixtureRecord = {
       ...createShowFixture({
         id: "show-live-no-next-cue",
         status: "live",
+        currentCueId: null,
         nextCueId: "show-live-no-next-cue-cue-1",
         technicalIdentifier: "7",
       }),
@@ -335,25 +348,15 @@ describe("video mixer guardrails integration", () => {
       createShowFixture({
         id: "show-live-non-numeric",
         status: "live",
-        nextCueId: "show-live-non-numeric-cue-1",
+        currentCueId: null,
+        nextCueId: null,
         technicalIdentifier: "CAM_A",
       }),
       createShowFixture({
         id: "show-live-match",
         status: "live",
+        currentCueId: null,
         nextCueId: "show-live-match-cue-1",
-        technicalIdentifier: "7",
-      }),
-      createShowFixture({
-        id: "show-draft-match",
-        status: "draft",
-        nextCueId: "show-draft-match-cue-1",
-        technicalIdentifier: "7",
-      }),
-      createShowFixture({
-        id: "show-archived-match",
-        status: "archived",
-        nextCueId: "show-archived-match-cue-1",
         technicalIdentifier: "7",
       }),
     ];
@@ -367,27 +370,23 @@ describe("video mixer guardrails integration", () => {
 
     expect(takeShowMock).toHaveBeenCalledTimes(1);
     expect(takeShowMock).toHaveBeenCalledWith("show-live-match");
-    expectLiveAndFallbackShowLookupQueries();
+    expectActiveCuePointerLookupQueries();
   });
 
-  it("uses deterministic fallback ordering when no live show matches", async () => {
+  it("skips auto-take when multiple shows have active cue pointers", async () => {
     mockDbState.shows = [
       createShowFixture({
-        id: "show-live-no-match",
+        id: "show-with-current",
         status: "live",
-        nextCueId: "show-live-no-match-cue-1",
-        technicalIdentifier: "9",
+        currentCueId: "show-with-current-cue-1",
+        nextCueId: null,
+        technicalIdentifier: "4",
       }),
       createShowFixture({
-        id: "show-draft-fallback-first",
+        id: "show-with-next",
         status: "draft",
-        nextCueId: "show-draft-fallback-first-cue-1",
-        technicalIdentifier: "7",
-      }),
-      createShowFixture({
-        id: "show-archived-fallback-second",
-        status: "archived",
-        nextCueId: "show-archived-fallback-second-cue-1",
+        currentCueId: null,
+        nextCueId: "show-with-next-cue-1",
         technicalIdentifier: "7",
       }),
     ];
@@ -399,9 +398,8 @@ describe("video mixer guardrails integration", () => {
     atem.emit("stateChanged", buildState(7, 1));
     await flushAsync();
 
-    expect(takeShowMock).toHaveBeenCalledTimes(1);
-    expect(takeShowMock).toHaveBeenCalledWith("show-draft-fallback-first");
-    expectLiveAndFallbackShowLookupQueries();
+    expect(takeShowMock).not.toHaveBeenCalled();
+    expectActiveCuePointerLookupQueries();
   });
 
   describe("Companion OSC preview", () => {
@@ -446,9 +444,9 @@ describe("video mixer guardrails integration", () => {
 
       await service.syncNextCueVideoMixerPreview("show-osc-1");
 
-      // row = floor(9 / 8) = 1, column = (9 % 8) - 1 = 0
+      // zeroBasedIndex=8 -> row=2, column=1
       expect(mockOscState.instances).toHaveLength(1);
-      expect(mockOscState.instances[0]?.sendCalls).toEqual(["/location/1/1/0/press"]);
+      expect(mockOscState.instances[0]?.sendCalls).toEqual(["/location/1/2/1/press"]);
     });
 
     it("applies page width to compute row and column", async () => {
@@ -457,9 +455,9 @@ describe("video mixer guardrails integration", () => {
 
       await service.syncNextCueVideoMixerPreview("show-osc-2");
 
-      // row = floor(10 / 4) = 2, column = (10 % 4) - 1 = 1
+      // zeroBasedIndex=9 -> row=3, column=2
       expect(mockOscState.instances).toHaveLength(1);
-      expect(mockOscState.instances[0]?.sendCalls).toEqual(["/location/1/2/1/press"]);
+      expect(mockOscState.instances[0]?.sendCalls).toEqual(["/location/1/3/2/press"]);
     });
 
     it("uses the configured page number in the OSC address", async () => {
@@ -468,9 +466,20 @@ describe("video mixer guardrails integration", () => {
 
       await service.syncNextCueVideoMixerPreview("show-osc-3");
 
-      // row = floor(1 / 8) = 0, column = (1 % 8) - 1 = 0
+      // For identifier 8 and pageWidth 8, this should map to row 1, column 8
       expect(mockOscState.instances).toHaveLength(1);
-      expect(mockOscState.instances[0]?.sendCalls).toEqual(["/location/3/0/0/press"]);
+      expect(mockOscState.instances[0]?.sendCalls).toEqual(["/location/3/1/1/press"]);
+    });
+
+    it("handles identifiers that are an exact multiple of the page width", async () => {
+      registerShow("show-osc-1-multiple", "8");
+      await configureCompanionOsc(service, { page: 1, pageWidth: 8 });
+
+      await service.syncNextCueVideoMixerPreview("show-osc-1-multiple");
+
+      // For identifier 8 and pageWidth 8, this should map to row 1, column 8
+      expect(mockOscState.instances).toHaveLength(1);
+      expect(mockOscState.instances[0]?.sendCalls).toEqual(["/location/1/1/8/press"]);
     });
 
     it("closes the OSC client after sending the message", async () => {

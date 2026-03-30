@@ -379,15 +379,19 @@ async function resolveNextCueTechnicalIdentifier(showId: string): Promise<Resolv
     return null;
   }
 
-  return resolveNextCueTechnicalIdentifierFromShow(show);
+  return resolveNextCueTechnicalIdentifierFromShow(show, "nextCueId");
 }
 
-function resolveNextCueTechnicalIdentifierFromShow(show: Show): ResolvedNextCueTechnicalIdentifier | null {
-  if (!show.nextCueId) {
+function resolveNextCueTechnicalIdentifierFromShow(
+  show: Show,
+  cuePointerField: "currentCueId" | "nextCueId" = "nextCueId",
+): ResolvedNextCueTechnicalIdentifier | null {
+  const cueId = show[cuePointerField];
+  if (!cueId) {
     return null;
   }
 
-  const nextCue = show.cues.find((cue) => cue.id === show.nextCueId);
+  const nextCue = show.cues.find((cue) => cue.id === cueId);
   if (!nextCue) {
     return null;
   }
@@ -410,64 +414,71 @@ function resolveNextCueTechnicalIdentifierFromShow(show: Show): ResolvedNextCueT
   };
 }
 
-async function resolveShowForProgramInput(inputNumber: number): Promise<ResolvedNextCueTechnicalIdentifier | null> {
+async function resolveShowsWithActiveCuePointers(): Promise<Show[]> {
   const repository = appDataSource.getRepository(Show);
 
-  const liveShows = await repository.find({
-    where: {
-      status: "live",
-      nextCueId: Not(IsNull()),
-    },
-    relations: {
-      tracks: true,
-      cues: { cueTrackValues: true },
-    },
-    order: {
-      tracks: { position: "ASC" },
-      cues: { orderKey: "ASC" },
-    },
-  });
+  const [showsWithCurrentCue, showsWithNextCue] = await Promise.all([
+    repository.find({
+      where: {
+        currentCueId: Not(IsNull()),
+      },
+      relations: {
+        tracks: true,
+        cues: { cueTrackValues: true },
+      },
+      order: {
+        tracks: { position: "ASC" },
+        cues: { orderKey: "ASC" },
+      },
+    }),
+    repository.find({
+      where: {
+        nextCueId: Not(IsNull()),
+      },
+      relations: {
+        tracks: true,
+        cues: { cueTrackValues: true },
+      },
+      order: {
+        tracks: { position: "ASC" },
+        cues: { orderKey: "ASC" },
+      },
+    }),
+  ]);
 
-  const fallbackShows = await repository.find({
-    where: {
-      status: Not("live"),
-      nextCueId: Not(IsNull()),
-    },
-    relations: {
-      tracks: true,
-      cues: { cueTrackValues: true },
-    },
-    order: {
-      tracks: { position: "ASC" },
-      cues: { orderKey: "ASC" },
-    },
-  });
+  const showsById = new Map<string, Show>();
+  for (const show of showsWithCurrentCue) {
+    showsById.set(show.id, show);
+  }
+  for (const show of showsWithNextCue) {
+    showsById.set(show.id, show);
+  }
 
-  const shows = [...liveShows, ...fallbackShows];
+  return Array.from(showsById.values());
+}
 
-  const matchingCandidates = shows
-    .map((show) => ({
-      show,
-      resolvedIdentifier: resolveNextCueTechnicalIdentifierFromShow(show),
-    }))
-    .filter((candidate): candidate is { show: Show; resolvedIdentifier: ResolvedNextCueTechnicalIdentifier } =>
-      candidate.resolvedIdentifier !== null,
-    )
-    .filter(({ resolvedIdentifier }) => {
-      const technicalIdentifier = Number.parseInt(resolvedIdentifier.technicalIdentifier, 10);
-      return !Number.isNaN(technicalIdentifier) && technicalIdentifier === inputNumber;
-    });
-
-  if (matchingCandidates.length === 0) {
+async function resolveShowForProgramInput(inputNumber: number): Promise<ResolvedNextCueTechnicalIdentifier | null> {
+  const shows = await resolveShowsWithActiveCuePointers();
+  if (shows.length === 0) {
     return null;
   }
 
-  if (matchingCandidates.length > 1) {
-    logger.warn`Multiple shows matched ATEM program input ${inputNumber}. Prioritizing a live show candidate.`;
+  if (shows.length > 1) {
+    logger.warn`Skipping auto-take for input ${inputNumber} because ${shows.length} shows currently have active cue pointers.`;
+    return null;
   }
 
-  const liveCandidate = matchingCandidates.find(({ show }) => show.status === "live");
-  return (liveCandidate ?? matchingCandidates[0]).resolvedIdentifier;
+  const resolvedIdentifier = resolveNextCueTechnicalIdentifierFromShow(shows[0], "nextCueId");
+  if (!resolvedIdentifier) {
+    return null;
+  }
+
+  const technicalIdentifier = Number.parseInt(resolvedIdentifier.technicalIdentifier, 10);
+  if (Number.isNaN(technicalIdentifier) || technicalIdentifier !== inputNumber) {
+    return null;
+  }
+
+  return resolvedIdentifier;
 }
 
 async function executeShowTakeForProgramInput(inputNumber: number) {
