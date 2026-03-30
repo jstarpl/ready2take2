@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-	  - "8000:8000/udp"
+      - "8000:8000/udp"
     volumes:
       - ./data:/app/data
 ```
