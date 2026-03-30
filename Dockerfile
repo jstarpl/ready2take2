@@ -31,7 +31,10 @@ COPY package.json ./
 # Pre-create persistent data directories
 RUN mkdir -p data/uploads/_tmp
 
+# Web app
 EXPOSE 3000
+# OSC server
+EXPOSE 8000/udp
 
 ENV NODE_ENV=production
 ENV BOOTSTRAP_MODE=docker

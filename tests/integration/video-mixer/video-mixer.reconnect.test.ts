@@ -96,13 +96,11 @@ vi.mock("../../../src/server/db/data-source", () => ({
 
       if (entity?.name === "Show") {
         return {
-          find: async (query: { where?: { status?: unknown; nextCueId?: unknown } }) => {
+          find: async (query: { where?: { currentCueId?: unknown; nextCueId?: unknown } }) => {
             let rows = [...mockDbState.shows];
 
-            if (query.where?.status === "live") {
-              rows = rows.filter((show) => show.status === "live");
-            } else if (query.where?.status) {
-              rows = rows.filter((show) => show.status !== "live");
+            if (query.where?.currentCueId) {
+              rows = rows.filter((show) => show.currentCueId !== null);
             }
 
             if (query.where?.nextCueId) {
@@ -132,6 +130,10 @@ async function configureVmixAndConnect(service: typeof import("../../../src/serv
     atemHost: "",
     atemPort: 9910,
     atemMe: null,
+    companionOscHost: "",
+    companionOscPort: 8000,
+    companionOscPage: 1,
+    companionOscPageWidth: 8,
   });
 
   await service.reconnectVideoMixerConnections();
@@ -214,6 +216,10 @@ describe("video mixer reconnect integration", () => {
       atemHost: "",
       atemPort: 9910,
       atemMe: null,
+      companionOscHost: "",
+      companionOscPort: 8000,
+      companionOscPage: 1,
+      companionOscPageWidth: 8,
     });
 
     const subscribeCountAfterDisable = connection.sendCalls.filter((call) => call === "SUBSCRIBE TALLY").length;

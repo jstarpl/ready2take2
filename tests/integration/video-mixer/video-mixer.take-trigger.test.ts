@@ -75,13 +75,11 @@ vi.mock("../../../src/server/db/data-source", () => ({
 
       if (entity?.name === "Show") {
         return {
-          find: async (query: { where?: { status?: unknown; nextCueId?: unknown } }) => {
+          find: async (query: { where?: { currentCueId?: unknown; nextCueId?: unknown } }) => {
             let rows = [...mockDbState.shows];
 
-            if (query.where?.status === "live") {
-              rows = rows.filter((show) => show.status === "live");
-            } else if (query.where?.status) {
-              rows = rows.filter((show) => show.status !== "live");
+            if (query.where?.currentCueId) {
+              rows = rows.filter((show) => show.currentCueId !== null);
             }
 
             if (query.where?.nextCueId) {
@@ -150,6 +148,10 @@ async function configureAtemAndConnect(
     atemHost: "127.0.0.1",
     atemPort: 9910,
     atemMe,
+    companionOscHost: "",
+    companionOscPort: 8000,
+    companionOscPage: 1,
+    companionOscPageWidth: 8,
   });
 
   await service.reconnectVideoMixerConnections();
@@ -212,18 +214,20 @@ describe("video mixer take-trigger integration", () => {
     expect(takeShowMock).not.toHaveBeenCalled();
   });
 
-  it("prefers the live show when multiple shows match the same ATEM input", async () => {
+  it("does not trigger take when multiple shows have active cue pointers", async () => {
     mockDbState.shows = [
       createShowFixture({
-        id: "show-draft",
+        id: "show-current",
         status: "draft",
-        nextCueId: "show-draft-cue-1",
+        currentCueId: "show-current-cue-1",
+        nextCueId: null,
         technicalIdentifier: "2",
       }),
       createShowFixture({
-        id: "show-live-preferred",
+        id: "show-next",
         status: "live",
-        nextCueId: "show-live-preferred-cue-1",
+        currentCueId: null,
+        nextCueId: "show-next-cue-1",
         technicalIdentifier: "2",
       }),
     ];
@@ -236,8 +240,7 @@ describe("video mixer take-trigger integration", () => {
     atem.emit("stateChanged", buildState(2, 1));
     await flushAsync();
 
-    expect(takeShowMock).toHaveBeenCalledTimes(1);
-    expect(takeShowMock).toHaveBeenCalledWith("show-live-preferred");
+    expect(takeShowMock).not.toHaveBeenCalled();
   });
 
   it("does not trigger take when no show matches the switched program input", async () => {
