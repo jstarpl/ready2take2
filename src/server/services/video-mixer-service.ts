@@ -647,10 +647,15 @@ async function sendPreviewToCompanionOsc(
     logger.warn`Skipping Companion OSC preview update because technical identifier '${resolvedIdentifier.technicalIdentifier}' is not a valid integer.`;
     return;
   }
+  if (identifier <= 0) {
+    logger.warn`Skipping Companion OSC preview update because technical identifier '${resolvedIdentifier.technicalIdentifier}' must be a positive integer.`;
+    return;
+  }
 
   const page = settings.companionOscPage;
-  const row = Math.floor(identifier / settings.companionOscPageWidth);
-  const column = (identifier % settings.companionOscPageWidth) - 1;
+  const zeroBasedIndex = identifier - 1;
+  const row = Math.floor(zeroBasedIndex / settings.companionOscPageWidth) + 1;
+  const column = (zeroBasedIndex % settings.companionOscPageWidth) + 1;
 
   const address = `/location/${page}/${row}/${column}/press`;
   const client = new OscClient(settings.companionOscHost, settings.companionOscPort);

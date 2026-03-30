@@ -524,6 +524,7 @@ export function SettingsView() {
                   <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ATEM M/E</label>
                   <Input value={atemMe} onChange={(event) => setAtemMe(event.target.value)} placeholder="eg. 1" />
                 </div>
+                <div className="space-y-1"></div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Companion OSC host</label>
                   <Input value={companionOscHost} onChange={(event) => setCompanionOscHost(event.target.value)} placeholder="eg. 127.0.0.1" />
