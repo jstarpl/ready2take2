@@ -33,6 +33,29 @@ Open the app at `http://localhost:3000` and sign in with the default credentials
 - Username: `admin`
 - Password: `admin123!`
 
+## OSC control
+
+Ready2Take2 listens for incoming OSC messages over UDP on port `8000` by default.
+You can change this with the `OSC_PORT` environment variable.
+
+Supported incoming OSC addresses:
+
+- `/production/take`
+	- Executes a **Take** for the show with a current cue.
+- `/production/moveNext/forward`
+	- Moves the next cue one cue forward.
+- `/production/moveNext/backward`
+	- Moves the next cue one cue backward.
+
+Example (`oscsend`):
+
+```bash
+oscsend localhost 8000 /production/take
+oscsend localhost 8000 /production/moveNext/forward
+oscsend localhost 8000 /production/moveNext/backward
+```
+
+
 ## Fast start for development
 
 1. Install dependencies:
