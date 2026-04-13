@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MediaTimeline } from "@/client/components/ui/media-timeline";
 import { Button } from "@/client/components/ui/button";
 import { formatOffset } from "@/client/lib/utils";
+import { trpc } from "@/client/lib/trpc";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/api/root";
 
@@ -88,20 +89,40 @@ export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, pauseReq
 
   const mediaSrc = selectedMediaFile ? `${serverUrl}${selectedMediaFile.publicPath}` : null;
   const isVideo = mediaKind === "video";
+  const cameraColorSettingsQuery = trpc.cameraColorSetting.list.useQuery();
+
+  const cameraColors = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const setting of cameraColorSettingsQuery.data ?? []) {
+      map.set(setting.identifier, setting.color);
+    }
+    return map;
+  }, [cameraColorSettingsQuery.data]);
 
   function getActiveMediaElement() {
     return isVideo ? videoRef.current : audioRef.current;
   }
 
   const cuesWithOffset = useMemo(() => {
+    const cameraTrackIds = new Set(show.tracks.filter((track) => track.type === "camera").map((track) => track.id));
+
     return show.cues
       .filter((cue) => cue.cueOffsetMs !== null)
-      .map((cue) => ({
-        id: cue.id,
-        comment: cue.comment,
-        offsetMs: cue.cueOffsetMs as number,
-      }));
-  }, [show.cues]);
+      .map((cue) => {
+        const cameraCueTrackValue = cue.cueTrackValues.find(
+          (cueTrackValue) => cameraTrackIds.has(cueTrackValue.trackId) && cueTrackValue.technicalIdentifier,
+        );
+
+        return {
+          cameraColor: cameraCueTrackValue?.technicalIdentifier
+            ? cameraColors.get(cameraCueTrackValue.technicalIdentifier)
+            : undefined,
+          id: cue.id,
+          comment: cue.comment,
+          offsetMs: cue.cueOffsetMs as number,
+        };
+      });
+  }, [cameraColors, show.cues, show.tracks]);
 
   useEffect(() => {
     audioRef.current?.pause();
@@ -252,6 +273,7 @@ export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, pauseReq
               id: cue.id,
               value: cue.offsetMs,
               label: `${cue.comment || "Cue"} (${formatOffset(cue.offsetMs)})`,
+              color: cue.cameraColor,
             }))}
             onChange={seekTo}
             onMarkerSelect={seekTo}

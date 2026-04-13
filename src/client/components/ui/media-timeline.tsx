@@ -5,10 +5,15 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
+function toHexWithAlpha(hexColor: string, alphaHex: string) {
+  return /^#[0-9a-fA-F]{6}$/.test(hexColor) ? `${hexColor}${alphaHex}` : undefined;
+}
+
 interface MediaTimelineMarker {
   id: string;
   label: string;
   value: number;
+  color?: string;
 }
 
 interface MediaTimelineProps {
@@ -132,15 +137,16 @@ export function MediaTimeline({
       <div className="absolute inset-0 z-10">
         {visibleMarkers.map((marker) => {
           const markerPercent = (marker.value / sliderMax) * 100;
+          const markerBackgroundColor = marker.color ? toHexWithAlpha(marker.color, "B3") : undefined;
+          const markerBorderColor = marker.color ? toHexWithAlpha(marker.color, "80") : undefined;
           return (
             <button
               key={marker.id}
               type="button"
-              className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 border border-primary/50 bg-primary/80"
-              style={{ left: `${markerPercent}%` }}
+              className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 border border-primary/50 bg-primary/70"
+              style={{ left: `${markerPercent}%`, backgroundColor: markerBackgroundColor, borderColor: markerBorderColor }}
               title={marker.label}
               disabled={disabled}
-              onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();
                 onMarkerSelect?.(marker.value);
@@ -152,7 +158,7 @@ export function MediaTimeline({
       </div>
 
       <div
-        className="pointer-events-none absolute top-1/2 z-20 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary border-2 bg-background shadow-sm"
+        className="pointer-events-none absolute top-1/2 z-20 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary bg-background shadow-sm"
         style={{ left: `${playedPercent}%` }}
       />
     </div>
