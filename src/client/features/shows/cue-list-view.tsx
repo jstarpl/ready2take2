@@ -5,19 +5,56 @@ import QRCode from "qrcode";
 import { trpc } from "@/client/lib/trpc";
 import { Button } from "@/client/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/client/components/ui/card";
+import { Input } from "@/client/components/ui/input";
 import { cn, getContrastColor } from "@/client/lib/utils";
 import {
     CueListViewStoreContext,
     getOrCreateCueListViewStore,
     destroyCueListViewStore,
     useCueListViewStore,
+    savePersistedSettings,
 } from "@/client/features/shows/cue-list-view-store";
 import { Cue } from "@/server/db/entities/Cue";
 import { Show } from "@/server/db/entities/Show";
-import { QrCodeIcon } from "lucide-react";
+import { HeadphonesIcon, QrCodeIcon, Settings2Icon, XIcon } from "lucide-react";
 
 function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
+}
+
+/** Play a short beep using the Web Audio API */
+function playBeep(frequency = 880, durationMs = 250, volume = 0.5): void {
+    try {
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+        gain.gain.setValueAtTime(volume, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationMs / 1000);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + durationMs / 1000);
+        osc.onended = () => { ctx.close(); };
+    } catch {
+        // Ignore errors if AudioContext is unavailable
+    }
+}
+
+/** Speak text using the Web Speech API */
+function speak(text: string): void {
+    try {
+        if (typeof window !== "undefined" && "speechSynthesis" in window) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+            window.speechSynthesis.speak(utterance);
+        }
+    } catch {
+        // Ignore errors if speech synthesis is unavailable
+    }
 }
 
 interface CueListItemProps {
@@ -145,11 +182,27 @@ function CueListViewContent() {
     const snapshot = useSnapshot(store);
     const utils = trpc.useUtils();
     const splitterRef = useRef<HTMLDivElement | null>(null);
+    const intercomSplitterRef = useRef<HTMLDivElement | null>(null);
+    const prevCurrentCueIdRef = useRef<string | null | undefined>(undefined);
+    const currentCueRef = useRef<Cue | undefined>(undefined);
     const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
     const [nowMs, setNowMs] = useState(() => Date.now());
     const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [settingsIntercomUrl, setSettingsIntercomUrl] = useState("");
     const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
     const [qrCodeError, setQrCodeError] = useState<string | null>(null);
+
+    /** Persist the current intercom/notification settings to localStorage */
+    function persistCurrentSettings(): void {
+        savePersistedSettings({
+            intercomUrl: store.intercomUrl,
+            isIntercomVisible: store.isIntercomVisible,
+            intercomPanelHeightPx: store.intercomPanelHeightPx,
+            audioNotificationsEnabled: store.audioNotificationsEnabled,
+            ttsNotificationsEnabled: store.ttsNotificationsEnabled,
+        });
+    }
 
     const showQuery = trpc.show.getDetail.useQuery(
         { showId: showId ?? "" },
@@ -202,6 +255,12 @@ function CueListViewContent() {
     }, [snapshot.selectedTrackId, orderedCues]);
 
     const currentCue = orderedCues.find((c: any) => c.id === show?.currentCueId);
+
+    // Keep a ref to the latest currentCue so the notification effect can access it
+    // without adding it to the dependency array (which would cause spurious re-runs
+    // on every show refetch, even when the currentCueId hasn't changed).
+    currentCueRef.current = currentCue;
+
     const shareUrl = useMemo(() => {
         if (typeof window === "undefined") {
             return "";
@@ -274,6 +333,34 @@ function CueListViewContent() {
             window.removeEventListener("hashchange", parseHash);
         };
     }, []);
+
+    // Detect take (currentCueId change) and trigger audio/TTS notifications.
+    // Reading store.audioNotificationsEnabled and store.ttsNotificationsEnabled directly
+    // (not from snapshot) is intentional: valtio proxies always reflect current values so
+    // there is no stale-closure risk for those fields.
+    // currentCueRef.current is used instead of currentCue to avoid triggering this effect
+    // on every show refetch while keeping access to the freshest cue data.
+    useEffect(() => {
+        const currentCueId = show?.currentCueId ?? null;
+
+        // Skip notification on the initial mount
+        if (prevCurrentCueIdRef.current === undefined) {
+            prevCurrentCueIdRef.current = currentCueId;
+            return;
+        }
+
+        // Only notify when a new cue becomes current
+        if (currentCueId !== prevCurrentCueIdRef.current && currentCueId !== null) {
+            if (store.audioNotificationsEnabled) {
+                playBeep();
+            }
+            if (store.ttsNotificationsEnabled && currentCueRef.current) {
+                speak(`Cue ${currentCueRef.current.cueId}`);
+            }
+        }
+
+        prevCurrentCueIdRef.current = currentCueId;
+    }, [show?.currentCueId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Now safe to have early returns
     if (!showId) {
@@ -356,6 +443,56 @@ function CueListViewContent() {
         window.addEventListener("pointerup", handlePointerUp);
     }
 
+    function handleIntercomSplitterPointerDown() {
+        const startY = { value: 0 };
+
+        function handlePointerMove(event: PointerEvent) {
+            if (startY.value === 0) {
+                startY.value = event.clientY;
+            }
+            const delta = startY.value - event.clientY;
+            startY.value = event.clientY;
+            const minHeight = 150;
+            const maxHeight = window.innerHeight * 0.8;
+            store.intercomPanelHeightPx = clamp(store.intercomPanelHeightPx + delta, minHeight, maxHeight);
+        }
+
+        function handlePointerUp() {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+            persistCurrentSettings();
+        }
+
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+    }
+
+    function handleToggleIntercom() {
+        store.isIntercomVisible = !store.isIntercomVisible;
+        persistCurrentSettings();
+    }
+
+    function handleOpenSettings() {
+        setSettingsIntercomUrl(store.intercomUrl);
+        setIsSettingsOpen(true);
+    }
+
+    function handleSaveSettings() {
+        store.intercomUrl = settingsIntercomUrl.trim();
+        persistCurrentSettings();
+        setIsSettingsOpen(false);
+    }
+
+    function handleToggleAudioNotifications() {
+        store.audioNotificationsEnabled = !store.audioNotificationsEnabled;
+        persistCurrentSettings();
+    }
+
+    function handleToggleTtsNotifications() {
+        store.ttsNotificationsEnabled = !store.ttsNotificationsEnabled;
+        persistCurrentSettings();
+    }
+
     function handleSelectedTrackChange(selectedTrackId?: string) {
         store.selectedTrackId = selectedTrackId || null;
         store.selectedTechnicalIdentifier = null;
@@ -384,6 +521,30 @@ function CueListViewContent() {
 
     return (
         <div className="h-screen w-full flex flex-col overflow-hidden bg-background">
+            {/* Toolbar */}
+            <div className="h-10 shrink-0 flex items-center gap-1 px-3 border-b border-border/50 bg-background/95">
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className={cn("h-8 w-8 px-0", snapshot.isIntercomVisible && "text-primary")}
+                    onClick={handleToggleIntercom}
+                    title={snapshot.isIntercomVisible ? "Hide intercom" : "Show intercom"}
+                >
+                    <HeadphonesIcon size={18} />
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 px-0"
+                    onClick={handleOpenSettings}
+                    title="Cue list settings"
+                >
+                    <Settings2Icon size={18} />
+                </Button>
+            </div>
+
+            {/* Split pane area */}
+            <div className="flex-1 flex flex-col overflow-hidden">
             {/* Top pane */}
             <div style={{ height: `${snapshot.splitterPositionPercent}%` }} className="flex flex-col border-b border-border/50 overflow-hidden">
                 <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
@@ -550,6 +711,40 @@ function CueListViewContent() {
                     )}
                 </div>
             </div>
+            </div>{/* end split pane area */}
+
+            {/* Intercom panel */}
+            {snapshot.isIntercomVisible && (
+                <>
+                    <div
+                        ref={intercomSplitterRef}
+                        onPointerDown={handleIntercomSplitterPointerDown}
+                        className="h-1 shrink-0 bg-border/50 hover:bg-primary/50 cursor-row-resize transition-colors"
+                        aria-label="Resize intercom panel"
+                    />
+                    <div
+                        style={{ height: `${snapshot.intercomPanelHeightPx}px` }}
+                        className="shrink-0 flex flex-col bg-background border-t border-border/50"
+                    >
+                        {snapshot.intercomUrl ? (
+                            <iframe
+                                src={snapshot.intercomUrl}
+                                className="flex-1 w-full border-0"
+                                allow="microphone; camera; autoplay; display-capture"
+                                title="Intercom"
+                            />
+                        ) : (
+                            <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground text-sm p-4 text-center">
+                                <HeadphonesIcon size={32} className="opacity-40" />
+                                <p>No intercom URL configured.</p>
+                                <Button variant="outline" size="sm" onClick={handleOpenSettings}>
+                                    Configure intercom
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
 
             {isQrModalOpen ? (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
@@ -577,6 +772,90 @@ function CueListViewContent() {
                                     <div className="text-sm text-muted-foreground">Generating QR code…</div>
                                 )}
                                 <div className="w-full break-all text-xs text-muted-foreground">{shareUrl}</div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            ) : null}
+
+            {/* Settings modal */}
+            {isSettingsOpen ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">
+                    <Card className="w-full max-w-sm bg-card/95">
+                        <CardHeader className="flex flex-row items-start justify-between gap-4">
+                            <div>
+                                <CardTitle>Cue list settings</CardTitle>
+                                <CardDescription>Configure the intercom and audio notifications for this device.</CardDescription>
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 shrink-0 px-0" onClick={() => setIsSettingsOpen(false)}>
+                                <XIcon size={16} />
+                            </Button>
+                        </CardHeader>
+                        <CardContent className="space-y-5">
+                            {/* Intercom URL */}
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                    Intercom URL
+                                </label>
+                                <Input
+                                    type="url"
+                                    placeholder="https://your-instance.intercom.apps.osaas.io/"
+                                    value={settingsIntercomUrl}
+                                    onChange={(e) => setSettingsIntercomUrl(e.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Enter the URL of your{" "}
+                                    <a
+                                        href="https://intercom.apps.osaas.io/"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="underline"
+                                    >
+                                        Open Intercom
+                                    </a>{" "}
+                                    instance. It will be embedded below the cue list.
+                                </p>
+                            </div>
+
+                            {/* Audio notifications */}
+                            <div className="space-y-3">
+                                <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                    Notifications on take
+                                </label>
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="text-sm">Beep sound</span>
+                                    <Button
+                                        type="button"
+                                        variant={snapshot.audioNotificationsEnabled ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={handleToggleAudioNotifications}
+                                    >
+                                        {snapshot.audioNotificationsEnabled ? "On" : "Off"}
+                                    </Button>
+                                </div>
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="text-sm">Voice announcement</span>
+                                    <Button
+                                        type="button"
+                                        variant={snapshot.ttsNotificationsEnabled ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={handleToggleTtsNotifications}
+                                    >
+                                        {snapshot.ttsNotificationsEnabled ? "On" : "Off"}
+                                    </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    A short beep or voice cue plays on this device when the director takes a cue.
+                                </p>
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-1">
+                                <Button variant="outline" size="sm" onClick={() => setIsSettingsOpen(false)}>
+                                    Cancel
+                                </Button>
+                                <Button size="sm" onClick={handleSaveSettings}>
+                                    Save
+                                </Button>
                             </div>
                         </CardContent>
                     </Card>
