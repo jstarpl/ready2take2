@@ -27,7 +27,7 @@ export function AppRoutes() {
       </Route>
       <Route path="/shows/:showId" element={<ShowWorkspace />} />
       <Route path="/shows/:showId/cue-list-view" element={<CueListView />} />
-      <Route path="/shows/:showId/lobby" element={<LobbyView />} />
+      <Route path="/shows/return-feed-view" element={<LobbyView />} />
       <Route path="/settings" element={<SettingsView />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
