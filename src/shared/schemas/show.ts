@@ -15,6 +15,8 @@ export const showIdSchema = z.object({
   showId: z.string(),
 });
 
+export const nullSchema = z.object({}).nullish();
+
 export const showCuePointerSchema = z.object({
   showId: z.string(),
   cueId: z.string().nullable(),

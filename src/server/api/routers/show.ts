@@ -1,11 +1,13 @@
 import { observable } from "@trpc/server/observable";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { projectIdSchema, showCreateSchema, showCuePointerSchema, showIdSchema, showReorderSchema, showUpdateSchema } from "@/shared/schemas";
+import { nullSchema, projectIdSchema, showCreateSchema, showCuePointerSchema, showIdSchema, showReorderSchema, showUpdateSchema } from "@/shared/schemas";
 import { appDataSource } from "../../db/data-source";
 import { Show } from "../../db/entities/Show";
 import { showEvents } from "../../realtime/show-events";
 import { assignShowCuePointer, createShowWithDefaultTrack, deleteShow, moveNextCueBackward, moveNextCueForward, resetShow, reorderShows, takeShow, updateShowDetails } from "../../services/show-service";
 import type { ShowEvent } from "@/shared/types/domain";
+import { IsNull } from "typeorm/find-options/operator/IsNull.js";
+import { Not } from "typeorm/find-options/operator/Not.js";
 
 export const showRouter = createTRPCRouter({
   listByProject: protectedProcedure.input(projectIdSchema).query(async ({ input }) => {
@@ -29,6 +31,31 @@ export const showRouter = createTRPCRouter({
   getDetail: protectedProcedure.input(showIdSchema).query(async ({ input }) => {
     return appDataSource.getRepository(Show).findOne({
       where: { id: input.showId },
+      relations: {
+        mediaFiles: true,
+        tracks: true,
+        cues: { cueTrackValues: true },
+        currentCue: true,
+        nextCue: true,
+      },
+      order: {
+        mediaFiles: { createdAt: "DESC" },
+        tracks: { position: "ASC" },
+        cues: { orderKey: "ASC" },
+      },
+    });
+  }),
+  getActiveShowDetail: protectedProcedure.input(nullSchema).query(async () => {
+    const allShows = await appDataSource.getRepository(Show).find();
+
+    const activeShow = allShows.find((show) => show.currentCueId !== null || show.nextCueId !== null);
+
+    if (!activeShow) {
+      return null;
+    }
+
+    return appDataSource.getRepository(Show).findOne({
+      where: { id: activeShow.id },
       relations: {
         mediaFiles: true,
         tracks: true,

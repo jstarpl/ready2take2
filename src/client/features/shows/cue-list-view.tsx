@@ -61,7 +61,7 @@ function CueListItem({ cue, show, status, countdownText, trackValues, cameraColo
                             <div key={track.id} className="flex flex-col gap-1 relative self-stretch justify-self-stretch self-stretch align-center items-center " style={{ backgroundColor: bgColor }}>
                                 <div className="absolute text-muted-foreground text-xs -bottom-4">{track.name}</div>
                                 <div
-                                    className="text-4xl px-2 py-1"
+                                    className="text-4xl px-2 py-1 font-semibold"
                                     style={{ color: textColor }}
                                 >
                                     {value || "—"}

@@ -6,6 +6,7 @@ class ShowEvents {
 
   publish(event: ShowEvent) {
     this.emitter.emit(event.showId, event);
+    this.emitter.emit("*", event);
   }
 
   subscribe(showId: string, handler: (event: ShowEvent) => void) {
