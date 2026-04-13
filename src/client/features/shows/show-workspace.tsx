@@ -226,7 +226,7 @@ interface LiveCueRecordingBarProps {
 
 function LiveCueRecordingBar({ trackName, cameraColorSettings, lastIdentifier, onIdentifierSelect, onStop }: LiveCueRecordingBarProps) {
   return (
-    <div className="border-b border-red-500/40 bg-red-950/25 px-4 py-2">
+    <div className="border-b border-red-500/40 bg-red-950/25 px-4 py-2 select-none">
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
         <span className="text-xs font-bold uppercase tracking-widest text-red-400 shrink-0">Live Cue Recording</span>

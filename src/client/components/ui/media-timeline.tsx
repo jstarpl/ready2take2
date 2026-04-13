@@ -60,6 +60,8 @@ export function MediaTimeline({
     onChange(getValueFromClientX(clientX));
 
     function handlePointerMove(event: PointerEvent) {
+      event.preventDefault();
+      event.stopPropagation();
       onChange(getValueFromClientX(event.clientX));
     }
 
@@ -116,7 +118,10 @@ export function MediaTimeline({
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
       )}
       onKeyDown={handleKeyDown}
-      onPointerDown={(event) => beginDrag(event.clientX)}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        beginDrag(event.clientX);
+      }}
     >
       <div className="pointer-events-none absolute inset-x-0 top-1/2 z-0 h-1 -translate-y-1/2 bg-muted/40" />
       <div

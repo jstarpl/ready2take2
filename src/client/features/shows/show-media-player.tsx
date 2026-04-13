@@ -241,7 +241,7 @@ export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, pauseReq
   const controlsDisabled = !selectedMediaFile || durationMs <= 0;
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-4 py-3">
+    <div className="mx-auto w-full max-w-[1600px] px-4 py-3 select-none">
         <div className="relative mb-3">
           <MediaTimeline
             value={currentTimeMs}
