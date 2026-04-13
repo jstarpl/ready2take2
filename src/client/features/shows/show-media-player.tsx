@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MediaTimeline } from "@/client/components/ui/media-timeline";
 import { Button } from "@/client/components/ui/button";
 import { formatOffset } from "@/client/lib/utils";
@@ -62,10 +62,9 @@ interface ShowMediaPlayerProps {
   pauseRequested?: boolean;
   currentTimeRequestedMs?: number;
   onCurrentTimeChange?: (currentTimeMs: number) => void;
-  topSlot?: ReactNode;
 }
 
-export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, pauseRequested = false, currentTimeRequestedMs, onCurrentTimeChange, topSlot }: ShowMediaPlayerProps) {
+export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, pauseRequested = false, currentTimeRequestedMs, onCurrentTimeChange }: ShowMediaPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [durationMs, setDurationMs] = useState(0);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
@@ -242,9 +241,7 @@ export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, pauseReq
   const controlsDisabled = !selectedMediaFile || durationMs <= 0;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/70 bg-card/95 backdrop-blur-sm">
-      {topSlot}
-      <div className="mx-auto w-full max-w-[1600px] px-4 py-3">
+    <div className="mx-auto w-full max-w-[1600px] px-4 py-3">
         <div className="relative mb-3">
           <MediaTimeline
             value={currentTimeMs}
@@ -336,7 +333,6 @@ export function ShowMediaPlayer({ show, serverUrl, selectedMediaFileId, pauseReq
             {playbackError ? <div className="text-xs text-destructive">{playbackError}</div> : null}
           </div>
         </div>
-      </div>
     </div>
   );
 }

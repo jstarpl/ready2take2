@@ -433,6 +433,14 @@ export function ShowWorkspace() {
   );
 }
 
+function ShowWorkspaceBottomBar({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/70 bg-card/95 backdrop-blur-sm">
+      {children}
+    </div>
+  );
+}
+
 /** Inner component that uses the valtio store */
 function ShowWorkspaceContent() {
   const navigate = useNavigate();
@@ -1545,48 +1553,36 @@ function ShowWorkspaceContent() {
           </form>
         </ModalDialog>
       </div>
-      {!snapshot.selectedMediaFileId && snapshot.liveCueRecordingMode && (() => {
-        const liveTrackName = show.tracks.find((t) => t.id === snapshot.liveCueRecordingTrackId)?.name ?? "";
-        return (
-          <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/70 bg-card/95 backdrop-blur-sm">
-            <LiveCueRecordingBar
-              trackName={liveTrackName}
-              cameraColorSettings={cameraColorSettingsQuery.data ?? []}
-              lastIdentifier={snapshot.lastLiveCueIdentifier}
-              onIdentifierSelect={handleLiveCueRecord}
-              onStop={() => {
-                store.liveCueRecordingMode = false;
-                store.liveCueRecordingTrackId = null;
-                store.lastLiveCueIdentifier = null;
-              }}
+      {(snapshot.liveCueRecordingMode || snapshot.selectedMediaFileId) && (
+        <ShowWorkspaceBottomBar>
+          {snapshot.liveCueRecordingMode && (() => {
+            const liveTrackName = show.tracks.find((t) => t.id === snapshot.liveCueRecordingTrackId)?.name ?? "";
+            return (
+              <LiveCueRecordingBar
+                trackName={liveTrackName}
+                cameraColorSettings={cameraColorSettingsQuery.data ?? []}
+                lastIdentifier={snapshot.lastLiveCueIdentifier}
+                onIdentifierSelect={handleLiveCueRecord}
+                onStop={() => {
+                  store.liveCueRecordingMode = false;
+                  store.liveCueRecordingTrackId = null;
+                  store.lastLiveCueIdentifier = null;
+                }}
+              />
+            );
+          })()}
+          {snapshot.selectedMediaFileId && (
+            <ShowMediaPlayer
+              show={show}
+              serverUrl={SERVER_URL}
+              selectedMediaFileId={snapshot.selectedMediaFileId}
+              pauseRequested={snapshot.activeModal === "addCue" || snapshot.activeModal === "importCues"}
+              currentTimeRequestedMs={currentTimeRequest}
+              onCurrentTimeChange={(ms) => (store.currentTimeMs = ms)}
             />
-          </div>
-        );
-      })()}
-      {snapshot.selectedMediaFileId && <ShowMediaPlayer
-        show={show}
-        serverUrl={SERVER_URL}
-        selectedMediaFileId={snapshot.selectedMediaFileId}
-        pauseRequested={snapshot.activeModal === "addCue" || snapshot.activeModal === "importCues"}
-        currentTimeRequestedMs={currentTimeRequest}
-        onCurrentTimeChange={(ms) => (store.currentTimeMs = ms)}
-        topSlot={snapshot.liveCueRecordingMode ? (() => {
-          const liveTrackName = show.tracks.find((t) => t.id === snapshot.liveCueRecordingTrackId)?.name ?? "";
-          return (
-            <LiveCueRecordingBar
-              trackName={liveTrackName}
-              cameraColorSettings={cameraColorSettingsQuery.data ?? []}
-              lastIdentifier={snapshot.lastLiveCueIdentifier}
-              onIdentifierSelect={handleLiveCueRecord}
-              onStop={() => {
-                store.liveCueRecordingMode = false;
-                store.liveCueRecordingTrackId = null;
-                store.lastLiveCueIdentifier = null;
-              }}
-            />
-          );
-        })() : null}
-      />}
+          )}
+        </ShowWorkspaceBottomBar>
+      )}
       <SheetDialog
         open={snapshot.activeModal === "media"}
         title="Media manager"
