@@ -58,7 +58,7 @@ function LobbyItem({ cue, show, status, countdownText, trackValues, cameraColors
                         <div key={firstCameraTrack.id} className="flex flex-col items-center gap-1">
                             <div
                                 className={cn(
-                                    "font-mono font-semibold px-4 py-2 rounded text-7xl",
+                                    "font-semibold px-4 py-2 text-7xl min-w-[2ch] text-center",
                                 )}
                                 style={{ backgroundColor: bgColor, color: textColor }}
                             >
