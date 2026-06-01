@@ -94,6 +94,8 @@ oscsend localhost 8000 /production/moveNext/backward
 	- `Take` action (and `F12` shortcut) to advance cue pointers
 	- Edit per-track technical identifiers for each cue
 	- Create/remove tracks with automatic cue-track value backfill/integrity handling
+	- Return feed view at `/shows/return-feed-view` for a large-screen current/next/following cue output
+	- Optional URL hash zoom control for return feed view (`#zoom=150` = 150% scale)
 - Collaboration and refresh
 	- Show-scoped realtime events over WebSockets/tRPC subscriptions
 	- Client refresh through query invalidation on mutation success and subscription events
@@ -117,6 +119,26 @@ oscsend localhost 8000 /production/moveNext/backward
 	- Every cue should have one value row for every track in the same show.
 - Show-scoped realtime
 	- Mutations publish events for a single show, and clients viewing that show refresh from those events.
+
+## Return feed view
+
+Ready2Take2 includes a dedicated return feed output route intended for TVs, confidence monitors, or projector screens:
+
+- Route: `/shows/return-feed-view`
+- Behavior:
+	- Displays the active show name, current cue, next cue, and following cues.
+	- Updates automatically via realtime events.
+	- Shows countdown timing for upcoming cues when offsets are available.
+
+### Zoom parameter
+
+You can scale the return feed output by adding a `zoom` value in the URL hash.
+
+- Format: `#zoom=<percent>`
+- Example: `http://localhost:5173/shows/return-feed-view#zoom=150`
+- Effect: sets the page root font size to the given percentage (`150` = 150%, `100` = default size).
+
+This is useful when calibrating readability on displays with different sizes or resolutions.
 
 ## Default development login
 

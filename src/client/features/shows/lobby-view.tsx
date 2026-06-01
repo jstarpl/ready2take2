@@ -172,6 +172,7 @@ function getCueCountdownText(
 export function LobbyView() {
     const utils = trpc.useUtils();
     const [nowMs, setNowMs] = useState(() => Date.now());
+    const [zoom, setZoom] = useState(100);
 
     const showQuery = trpc.show.getActiveShowDetail.useQuery(
         null,
@@ -232,6 +233,38 @@ export function LobbyView() {
             window.clearInterval(intervalId);
         };
     }, [currentCue, show?.currentCueTakenAt]);
+
+    useEffect(() => {
+        function parseHash() {
+            const params = new URLSearchParams(window.location.hash.slice(1));
+            const zoom = params.get("zoom");
+            if (zoom) {
+                setZoom(Number(zoom));
+            }
+        }
+
+        // On initial load, parse hash for selected track and technical identifier
+        parseHash();
+
+        window.addEventListener("hashchange", parseHash);
+
+        return () => {
+            window.removeEventListener("hashchange", parseHash);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (Number.isNaN(zoom) || zoom <= 0) {
+            return;
+        }
+
+        window.document.documentElement.style.fontSize = `${zoom}%`;
+
+        // Clean up on unmount
+        return () => {
+            window.document.documentElement.style.fontSize = "";
+        };
+    }, [zoom]);
 
     if (!showId) {
         return (
