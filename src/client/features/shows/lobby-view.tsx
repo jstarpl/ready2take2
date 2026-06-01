@@ -44,12 +44,12 @@ function LobbyItem({ cue, show, status, countdownText, trackValues, cameraColors
             )}
         >
             <div className="flex items-baseline gap-6 flex-wrap">
-                <div className={cn("font-mono font-bold text-6xl min-w-[3ch]")}>
+                <div className={cn("font-mono text-muted-foreground text-6xl min-w-[3ch]")}>
                     {cue.cueId}
                 </div>
                 <div
                     className={cn(
-                        "font-mono text-muted-foreground min-w-[6ch] text-5xl",
+                        "font-mono min-w-[6ch] font-bold text-5xl",
                     )}
                 >
                     {countdownText}

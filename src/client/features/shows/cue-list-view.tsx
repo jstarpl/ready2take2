@@ -46,7 +46,7 @@ function CueListItem({ cue, show, status, countdownText, trackValues, cameraColo
                     </div>
                 </div>
                 <div className="flex-1 justify-self-end">
-                    <div className="font-mono text-4xl text-foreground">
+                    <div className="font-mono text-4xl font-bold text-foreground">
                         {countdownText}
                     </div>
                 </div>
