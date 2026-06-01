@@ -8,13 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/cli
 import { cn, getContrastColor } from "@/client/lib/utils";
 import {
     CueListViewStoreContext,
+    CueListViewMode,
     getOrCreateCueListViewStore,
     destroyCueListViewStore,
     useCueListViewStore,
 } from "@/client/features/shows/cue-list-view-store";
 import { Cue } from "@/server/db/entities/Cue";
 import { Show } from "@/server/db/entities/Show";
-import { QrCodeIcon } from "lucide-react";
+import { PanelBottom, PanelTop, QrCodeIcon, Rows2 } from "lucide-react";
 
 function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
@@ -257,11 +258,15 @@ function CueListViewContent() {
             const params = new URLSearchParams(window.location.hash.slice(1));
             const trackId = params.get("trackId");
             const identifier = params.get("identifier");
+            const view = params.get("view");
             if (trackId) {
                 store.selectedTrackId = trackId;
             }
             if (identifier) {
                 store.selectedTechnicalIdentifier = identifier;
+            }
+            if (view === "top" || view === "bottom" || view === "both") {
+                store.viewMode = view;
             }
         }
 
@@ -367,7 +372,7 @@ function CueListViewContent() {
         updateHash(store.selectedTrackId, selectedTechnicalIdentifier || null);
     }
 
-    function updateHash(selectedTrackId: string | null, selectedTechnicalIdentifier: string | null) {
+    function updateHash(selectedTrackId: string | null, selectedTechnicalIdentifier: string | null, viewMode?: CueListViewMode) {
         const params = new URLSearchParams(window.location.hash.slice(1));
         if (selectedTrackId) {
             params.set("trackId", selectedTrackId);
@@ -379,38 +384,206 @@ function CueListViewContent() {
         } else {
             params.delete("identifier");
         }
+        const resolvedViewMode = viewMode ?? store.viewMode;
+        if (resolvedViewMode && resolvedViewMode !== "both") {
+            params.set("view", resolvedViewMode);
+        } else {
+            params.delete("view");
+        }
         window.location.hash = params.toString();
     }
+
+    function handleViewModeChange(newViewMode: CueListViewMode) {
+        store.viewMode = newViewMode;
+        updateHash(store.selectedTrackId, store.selectedTechnicalIdentifier, newViewMode);
+    }
+
+    const viewModeToggle = (
+        <div className="flex gap-1">
+            <Button
+                type="button"
+                variant={snapshot.viewMode === "top" ? "default" : "outline"}
+                size="sm"
+                title="Top pane only"
+                onClick={() => handleViewModeChange("top")}
+            >
+                <PanelTop size={16} />
+            </Button>
+            <Button
+                type="button"
+                variant={snapshot.viewMode === "both" ? "default" : "outline"}
+                size="sm"
+                title="Both panes"
+                onClick={() => handleViewModeChange("both")}
+            >
+                <Rows2 size={16} />
+            </Button>
+            <Button
+                type="button"
+                variant={snapshot.viewMode === "bottom" ? "default" : "outline"}
+                size="sm"
+                title="Bottom pane only"
+                onClick={() => handleViewModeChange("bottom")}
+            >
+                <PanelBottom size={16} />
+            </Button>
+        </div>
+    );
 
     return (
         <div className="h-screen w-full flex flex-col overflow-hidden bg-background">
             {/* Top pane */}
-            <div style={{ height: `${snapshot.splitterPositionPercent}%` }} className="flex flex-col border-b border-border/50 overflow-hidden">
-                <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-                    {topPaneCues.length === 0 && !currentCue ? (
-                        <div className="flex items-center justify-center h-full text-muted-foreground">
-                            No cues to display
-                        </div>
-                    ) : (
-                        <>
-                            {currentCue !== undefined ? (
-                                <CueListItem
-                                    key={currentCue.id}
-                                    cue={currentCue}
-                                    show={safeShow}
-                                    status={"current"}
-                                    countdownText={'\u00A0'}
-                                    cameraColors={cameraColors}
-                                    trackValues={currentCue.cueTrackValues?.reduce(
+            {(snapshot.viewMode === "both" || snapshot.viewMode === "top") && (
+                <div
+                    style={snapshot.viewMode === "both" ? { height: `${snapshot.splitterPositionPercent}%` } : undefined}
+                    className={cn("flex flex-col border-b border-border/50 overflow-hidden", snapshot.viewMode === "top" && "flex-1")}
+                >
+                    <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                        {topPaneCues.length === 0 && !currentCue ? (
+                            <div className="flex items-center justify-center h-full text-muted-foreground">
+                                No cues to display
+                            </div>
+                        ) : (
+                            <>
+                                {currentCue !== undefined ? (
+                                    <CueListItem
+                                        key={currentCue.id}
+                                        cue={currentCue}
+                                        show={safeShow}
+                                        status={"current"}
+                                        countdownText={'\u00A0'}
+                                        cameraColors={cameraColors}
+                                        trackValues={currentCue.cueTrackValues?.reduce(
+                                            (acc: Record<string, string | null>, ctv: any) => {
+                                                acc[ctv.trackId] = ctv.technicalIdentifier;
+                                                return acc;
+                                            },
+                                            {},
+                                        )}
+                                    />
+                                ) : null}
+                                {topPaneCues.map((cue: any, idx: number) => {
+                                    let status: "current" | "next" | "following" = "following";
+                                    if (cue.id === safeShow.currentCueId) {
+                                        status = "current";
+                                    } else if (cue.id === safeShow.nextCueId) {
+                                        status = "next";
+                                    }
+
+                                    const trackValues = cue.cueTrackValues?.reduce(
                                         (acc: Record<string, string | null>, ctv: any) => {
                                             acc[ctv.trackId] = ctv.technicalIdentifier;
                                             return acc;
                                         },
                                         {},
-                                    )}
-                                />
-                            ) : null}
-                            {topPaneCues.map((cue: any, idx: number) => {
+                                    );
+
+                                    return (
+                                        <CueListItem
+                                            key={cue.id}
+                                            cue={cue}
+                                            show={safeShow}
+                                            status={status}
+                                            countdownText={getCueCountdownText(cue, currentCue, safeShow.currentCueTakenAt, nowMs)}
+                                            cameraColors={cameraColors}
+                                            trackValues={trackValues}
+                                        />
+                                    );
+                                })}
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Splitter — only when showing both panes */}
+            {snapshot.viewMode === "both" && (
+                <div
+                    ref={splitterRef}
+                    onPointerDown={handleSplitterPointerDown}
+                    className={cn(
+                        "h-1 bg-border/50 hover:bg-primary/50 cursor-row-resize transition-colors",
+                        isDraggingSplitter && "bg-primary",
+                    )}
+                    aria-label="Resize panes"
+                />
+            )}
+
+            {/* Bottom pane */}
+            {(snapshot.viewMode === "both" || snapshot.viewMode === "bottom") && (
+                <div
+                    style={snapshot.viewMode === "both" ? { height: `${100 - snapshot.splitterPositionPercent}%` } : undefined}
+                    className={cn("flex flex-col overflow-hidden", snapshot.viewMode === "bottom" && "flex-1")}
+                >
+                    <div className="border-b border-border/50 bg-background/50 px-4 py-3 space-y-3">
+                        <div className="flex items-end gap-3">
+                            <div className="grid grid-cols-2 gap-3 flex-1">
+                                {/* Track selector */}
+                                <div>
+                                    <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                                        Track
+                                    </label>
+                                    <select
+                                        value={snapshot.selectedTrackId || ""}
+                                        onChange={(e) => handleSelectedTrackChange(e.target.value || undefined)}
+                                        className="w-full border border-border/70 bg-background px-3 py-2 text-sm"
+                                    >
+                                        <option value="">— Select track —</option>
+                                        {safeShow.tracks.map((track: any) => (
+                                            <option key={track.id} value={track.id}>
+                                                {track.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Technical identifier selector */}
+                                <div>
+                                    <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                                        Value
+                                    </label>
+                                    <div className="flex gap-2">
+                                        <select
+                                            value={snapshot.selectedTechnicalIdentifier || ""}
+                                            onChange={(e) => handleSelectedTechnicalIdentifierChange(e.target.value || undefined)}
+                                            disabled={!snapshot.selectedTrackId}
+                                            className="w-full border border-border/70 bg-background px-3 py-2 text-sm disabled:opacity-50"
+                                        >
+                                            <option value="">— Select value —</option>
+                                            {selectedTrackTechnicalIdentifiers.map((identifier) => (
+                                                <option key={identifier} value={identifier}>
+                                                    {identifier}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="shrink-0"
+                                            onClick={() => setIsQrModalOpen(true)}
+                                        >
+                                            <QrCodeIcon size={20} />
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* View mode toggle */}
+                            {viewModeToggle}
+                        </div>
+                    </div>
+
+                    {/* Bottom pane content */}
+                    <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                        {bottomPaneCues.length === 0 ? (
+                            <div className="flex items-center justify-center h-full text-muted-foreground">
+                                {snapshot.selectedTrackId && snapshot.selectedTechnicalIdentifier
+                                    ? "No cues match the selected filter"
+                                    : "Select a track and value to filter cues"}
+                            </div>
+                        ) : (
+                            bottomPaneCues.map((cue: any) => {
                                 let status: "current" | "next" | "following" = "following";
                                 if (cue.id === safeShow.currentCueId) {
                                     status = "current";
@@ -437,119 +610,18 @@ function CueListViewContent() {
                                         trackValues={trackValues}
                                     />
                                 );
-                            })}
-                        </>
-                    )}
-                </div>
-            </div>
-
-            {/* Splitter */}
-            <div
-                ref={splitterRef}
-                onPointerDown={handleSplitterPointerDown}
-                className={cn(
-                    "h-1 bg-border/50 hover:bg-primary/50 cursor-row-resize transition-colors",
-                    isDraggingSplitter && "bg-primary",
-                )}
-                aria-label="Resize panes"
-            />
-
-            {/* Bottom pane */}
-            <div style={{ height: `${100 - snapshot.splitterPositionPercent}%` }} className="flex flex-col overflow-hidden">
-                <div className="border-b border-border/50 bg-background/50 px-4 py-3 space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                        {/* Track selector */}
-                        <div>
-                            <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                                Track
-                            </label>
-                            <select
-                                value={snapshot.selectedTrackId || ""}
-                                onChange={(e) => handleSelectedTrackChange(e.target.value || undefined)}
-                                className="w-full border border-border/70 bg-background px-3 py-2 text-sm"
-                            >
-                                <option value="">— Select track —</option>
-                                {safeShow.tracks.map((track: any) => (
-                                    <option key={track.id} value={track.id}>
-                                        {track.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* Technical identifier selector */}
-                        <div>
-                            <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                                Value
-                            </label>
-                            <div className="flex gap-2">
-                                <select
-                                    value={snapshot.selectedTechnicalIdentifier || ""}
-                                    onChange={(e) => handleSelectedTechnicalIdentifierChange(e.target.value || undefined)}
-                                    disabled={!snapshot.selectedTrackId}
-                                    className="w-full border border-border/70 bg-background px-3 py-2 text-sm disabled:opacity-50"
-                                >
-                                    <option value="">— Select value —</option>
-                                    {selectedTrackTechnicalIdentifiers.map((identifier) => (
-                                        <option key={identifier} value={identifier}>
-                                            {identifier}
-                                        </option>
-                                    ))}
-                                </select>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="shrink-0"
-                                    onClick={() => setIsQrModalOpen(true)}
-                                >
-                                    <QrCodeIcon size={20} />
-                                </Button>
-                            </div>
-                        </div>
+                            })
+                        )}
                     </div>
                 </div>
+            )}
 
-                {/* Bottom pane content */}
-                <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-                    {bottomPaneCues.length === 0 ? (
-                        <div className="flex items-center justify-center h-full text-muted-foreground">
-                            {snapshot.selectedTrackId && snapshot.selectedTechnicalIdentifier
-                                ? "No cues match the selected filter"
-                                : "Select a track and value to filter cues"}
-                        </div>
-                    ) : (
-                        bottomPaneCues.map((cue: any) => {
-                            let status: "current" | "next" | "following" = "following";
-                            if (cue.id === safeShow.currentCueId) {
-                                status = "current";
-                            } else if (cue.id === safeShow.nextCueId) {
-                                status = "next";
-                            }
-
-                            const trackValues = cue.cueTrackValues?.reduce(
-                                (acc: Record<string, string | null>, ctv: any) => {
-                                    acc[ctv.trackId] = ctv.technicalIdentifier;
-                                    return acc;
-                                },
-                                {},
-                            );
-
-                            return (
-                                <CueListItem
-                                    key={cue.id}
-                                    cue={cue}
-                                    show={safeShow}
-                                    status={status}
-                                    countdownText={getCueCountdownText(cue, currentCue, safeShow.currentCueTakenAt, nowMs)}
-                                    cameraColors={cameraColors}
-                                    trackValues={trackValues}
-                                />
-                            );
-                        })
-                    )}
+            {/* When only the top pane is shown, render the view mode toggle in a thin bar at the bottom */}
+            {snapshot.viewMode === "top" && (
+                <div className="border-t border-border/50 bg-background/50 px-4 py-2 flex items-center justify-end">
+                    {viewModeToggle}
                 </div>
-            </div>
+            )}
 
             {isQrModalOpen ? (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4">

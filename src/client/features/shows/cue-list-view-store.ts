@@ -1,6 +1,8 @@
 import { createContext, useContext } from "react";
 import { proxy } from "valtio";
 
+export type CueListViewMode = "both" | "top" | "bottom";
+
 export interface CueListViewState {
   // Track and value selection for bottom pane filtering
   selectedTrackId: string | null;
@@ -9,6 +11,9 @@ export interface CueListViewState {
   // Horizontal splitter position as percentage (0-100)
   // 50 = 50/50 split
   splitterPositionPercent: number;
+
+  // Which pane(s) to display
+  viewMode: CueListViewMode;
 }
 
 export function createCueListViewStore(): CueListViewState {
@@ -16,6 +21,7 @@ export function createCueListViewStore(): CueListViewState {
     selectedTrackId: null,
     selectedTechnicalIdentifier: null,
     splitterPositionPercent: 50,
+    viewMode: "both",
   });
 }
 
