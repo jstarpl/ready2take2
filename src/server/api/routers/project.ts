@@ -1,7 +1,8 @@
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { projectCreateSchema, projectIdSchema } from "@/shared/schemas";
+import { projectCreateSchema, projectIdSchema, projectImportSchema } from "@/shared/schemas";
 import { appDataSource } from "../../db/data-source";
 import { Project } from "../../db/entities/Project";
+import { exportProjectHierarchy, importProjectHierarchy } from "../../services/project-transfer-service";
 
 export const projectRouter = createTRPCRouter({
   list: protectedProcedure.query(async () => {
@@ -27,5 +28,11 @@ export const projectRouter = createTRPCRouter({
       relations: { shows: true },
       order: { shows: { orderKey: "ASC" } },
     });
+  }),
+  exportHierarchy: protectedProcedure.input(projectIdSchema).mutation(async ({ input }) => {
+    return exportProjectHierarchy(input.projectId);
+  }),
+  importHierarchy: protectedProcedure.input(projectImportSchema).mutation(async ({ ctx, input }) => {
+    return importProjectHierarchy(input.payload, ctx.user.id);
   }),
 });

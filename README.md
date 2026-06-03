@@ -88,6 +88,8 @@ oscsend localhost 8000 /production/moveNext/backward
 - Projects and shows
 	- Create projects and shows
 	- Show creation automatically creates a default `Camera` track
+	- Export an entire project (shows, tracks, cues, cue-track values) to hierarchical JSON
+	- Import an exported project JSON file into another app instance
 - Show workspace
 	- Create, update, delete, and reorder cues
 	- Set `current` and `next` cue pointers

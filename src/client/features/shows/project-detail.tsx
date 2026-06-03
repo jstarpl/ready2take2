@@ -22,7 +22,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2 } from "lucide-react";
+import { Download, GripVertical, Trash2, Upload } from "lucide-react";
 
 type ShowItem = { id: string; name: string; status: string; orderKey?: string };
 
@@ -110,7 +110,10 @@ export function ProjectDetail() {
   const utils = trpc.useUtils();
   const [showName, setShowName] = useState("");
   const isDraggingRef = useRef(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState<string | null>(null);
 
   const [orderedShowIds, setOrderedShowIds] = useState<string[]>(() =>
     [...project.shows].sort((a, b) => (a.orderKey ?? "").localeCompare(b.orderKey ?? "")).map((s) => s.id),
@@ -148,6 +151,34 @@ export function ProjectDetail() {
     },
   });
 
+  const exportProjectMutation = trpc.project.exportHierarchy.useMutation({
+    onSuccess: (payload) => {
+      const safeProjectName = project.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "project";
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${safeProjectName}-export.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
+  });
+
+  const importProjectMutation = trpc.project.importHierarchy.useMutation({
+    onSuccess: async (createdProject) => {
+      setImportError(null);
+      setImportSuccess(`Imported project "${createdProject.name}".`);
+      await utils.project.list.invalidate();
+      navigate(`/projects/${createdProject.id}`);
+    },
+    onError: (error) => {
+      setImportSuccess(null);
+      setImportError(error.message);
+    },
+  });
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -166,14 +197,63 @@ export function ProjectDetail() {
     });
   }
 
+  async function handleImportFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || importProjectMutation.isPending) return;
+
+    setImportError(null);
+    setImportSuccess(null);
+
+    try {
+      const raw = await file.text();
+      const payload = JSON.parse(raw);
+      importProjectMutation.mutate({ payload });
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        setImportError("Invalid JSON file.");
+      } else {
+        setImportError("Failed to read import file.");
+      }
+    } finally {
+      if (importInputRef.current) {
+        importInputRef.current.value = "";
+      }
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card className="bg-card/75">
         <CardHeader>
-          <CardTitle>{project.name}</CardTitle>
-          <CardDescription>{project.description ?? "No description provided."}</CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>{project.name}</CardTitle>
+              <CardDescription>{project.description ?? "No description provided."}</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => exportProjectMutation.mutate({ projectId: project.id })}
+                disabled={exportProjectMutation.isPending || importProjectMutation.isPending}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export project
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => importInputRef.current?.click()}
+                disabled={importProjectMutation.isPending || exportProjectMutation.isPending}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Import project
+              </Button>
+              <input ref={importInputRef} type="file" accept="application/json,.json" className="hidden" onChange={handleImportFileChange} />
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {importError ? <div className="text-sm text-destructive">{importError}</div> : null}
+          {importSuccess ? <div className="text-sm text-emerald-600">{importSuccess}</div> : null}
           <form
             className="flex flex-col gap-3 md:flex-row"
             onSubmit={(event) => {
