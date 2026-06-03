@@ -40,6 +40,7 @@ export async function exportProjectHierarchy(projectId: string): Promise<Project
           status: show.status,
           orderKey: show.orderKey,
           currentCueId: show.currentCueId,
+          currentCueTakenAt: show.currentCueTakenAt ? show.currentCueTakenAt.toISOString() : null,
           nextCueId: show.nextCueId,
           tracks: [...show.tracks]
             .sort((a, b) => a.position - b.position)
@@ -141,7 +142,7 @@ export async function importProjectHierarchy(payload: ProjectExportPayload, crea
           throw new Error("Imported project current cue pointer references a cue that does not exist.");
         }
         savedShow.currentCueId = importedCurrentCueId;
-        savedShow.currentCueTakenAt = new Date();
+        savedShow.currentCueTakenAt = show.currentCueTakenAt ? new Date(show.currentCueTakenAt) : null;
       }
 
       if (show.nextCueId !== null) {

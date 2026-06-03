@@ -209,8 +209,12 @@ export function ProjectDetail() {
       const raw = await file.text();
       const payload = JSON.parse(raw);
       importProjectMutation.mutate({ payload });
-    } catch {
-      setImportError("Invalid JSON file.");
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        setImportError("Invalid JSON file.");
+      } else {
+        setImportError("Failed to read import file.");
+      }
     } finally {
       if (importInputRef.current) {
         importInputRef.current.value = "";

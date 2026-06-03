@@ -40,6 +40,7 @@ const projectExportShowSchema = z.object({
   status: z.enum(["draft", "live", "archived"]),
   orderKey: z.string().trim().min(1),
   currentCueId: z.string().nullable(),
+  currentCueTakenAt: z.string().datetime().nullable(),
   nextCueId: z.string().nullable(),
   tracks: z.array(projectExportTrackSchema),
   cues: z.array(projectExportCueSchema),
