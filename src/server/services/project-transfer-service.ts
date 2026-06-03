@@ -123,7 +123,7 @@ export async function importProjectHierarchy(payload: ProjectExportPayload, crea
         for (const cueTrackValue of cue.cueTrackValues) {
           const importedTrackId = sourceTrackIdToImportedTrackId.get(cueTrackValue.trackId);
           if (!importedTrackId) {
-            throw new Error("Imported project references a track that does not exist.");
+            throw new Error("Export data is inconsistent: cue-track value references missing track ID.");
           }
 
           await manager.save(
@@ -139,7 +139,7 @@ export async function importProjectHierarchy(payload: ProjectExportPayload, crea
       if (show.currentCueId !== null) {
         const importedCurrentCueId = sourceCueIdToImportedCueId.get(show.currentCueId);
         if (!importedCurrentCueId) {
-          throw new Error("Imported project current cue pointer references a cue that does not exist.");
+          throw new Error("Export data is inconsistent: current cue pointer references missing cue ID.");
         }
         savedShow.currentCueId = importedCurrentCueId;
         savedShow.currentCueTakenAt = show.currentCueTakenAt ? new Date(show.currentCueTakenAt) : null;
@@ -148,7 +148,7 @@ export async function importProjectHierarchy(payload: ProjectExportPayload, crea
       if (show.nextCueId !== null) {
         const importedNextCueId = sourceCueIdToImportedCueId.get(show.nextCueId);
         if (!importedNextCueId) {
-          throw new Error("Imported project next cue pointer references a cue that does not exist.");
+          throw new Error("Export data is inconsistent: next cue pointer references missing cue ID.");
         }
         savedShow.nextCueId = importedNextCueId;
       }
