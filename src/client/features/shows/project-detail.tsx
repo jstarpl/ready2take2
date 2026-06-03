@@ -171,7 +171,6 @@ export function ProjectDetail() {
       setImportError(null);
       setImportSuccess(`Imported project "${createdProject.name}".`);
       await utils.project.list.invalidate();
-      await utils.project.getById.invalidate({ projectId: project.id });
       navigate(`/projects/${createdProject.id}`);
     },
     onError: (error) => {

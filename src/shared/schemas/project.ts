@@ -34,17 +34,27 @@ const projectExportCueSchema = z.object({
   cueTrackValues: z.array(projectExportCueTrackValueSchema),
 });
 
-const projectExportShowSchema = z.object({
-  id: z.string(),
-  name: z.string().trim().min(1).max(120),
-  status: z.enum(["draft", "live", "archived"]),
-  orderKey: z.string().trim().min(1),
-  currentCueId: z.string().nullable(),
-  currentCueTakenAt: z.string().datetime().nullable(),
-  nextCueId: z.string().nullable(),
-  tracks: z.array(projectExportTrackSchema),
-  cues: z.array(projectExportCueSchema),
-});
+const projectExportShowSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().trim().min(1).max(120),
+    status: z.enum(["draft", "live", "archived"]),
+    orderKey: z.string().trim().min(1),
+    currentCueId: z.string().nullable(),
+    currentCueTakenAt: z.string().datetime().nullable(),
+    nextCueId: z.string().nullable(),
+    tracks: z.array(projectExportTrackSchema),
+    cues: z.array(projectExportCueSchema),
+  })
+  .superRefine((show, ctx) => {
+    if (show.currentCueTakenAt !== null && show.currentCueId === null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["currentCueTakenAt"],
+        message: "currentCueTakenAt requires currentCueId.",
+      });
+    }
+  });
 
 const projectExportProjectSchema = z.object({
   name: z.string().trim().min(1).max(120),
